@@ -1,6 +1,6 @@
 module CassetteOverlay
 
-export @MethodTable, @overlay, @OverlayPass
+export @MethodTable, @overlay, @OverlayPass, nooverlay
 
 const CC = Core.Compiler
 
@@ -9,7 +9,12 @@ using Core: MethodInstance, SimpleVector, MethodTable
 using Base.Experimental: @MethodTable, @overlay
 
 abstract type OverlayPass end
-method_table(::Type{<:OverlayPass}) = error("CassetteOverlay is available via the @OverlayPass macro")
+function method_table end
+function nooverlay end
+method_table(::Type{<:OverlayPass}) =
+    error("CassetteOverlay is available via the @OverlayPass macro")
+nooverlay(@nospecialize args...) =
+    error("CassetteOverlay is available via the @OverlayPass macro")
 
 function overlay_generator(passtype, fargtypes)
     tt = Base.to_tuple_type(fargtypes)
@@ -120,10 +125,10 @@ macro OverlayPass(method_table::Symbol)
 
     passdef = :(struct $PassName <: $OverlayPass end)
 
-    mtf = (@__MODULE__).method_table
     mtdef = :($CassetteOverlay.method_table(::Type{$PassName}) = $(esc(method_table)))
 
     builtinpass = :(@inline function (::$PassName)(f::Union{Core.Builtin,Core.IntrinsicFunction}, args...)
+        @nospecialize f args
         return f(args...)
     end)
 
@@ -131,9 +136,15 @@ macro OverlayPass(method_table::Symbol)
         return $overlay_generator(pass, fargs)
     end)
 
+    nooverlaytype = typeof(CassetteOverlay.nooverlay)
+    nooverlaydef = :(@inline function (pass::$PassName)(::$nooverlaytype, f, args...)
+        @nospecialize f args
+        return f(args...)
+    end)
+
     returnpass = :(return $PassName())
 
-    return Expr(:toplevel, passdef, mtdef, builtinpass, overlaypass, returnpass)
+    return Expr(:toplevel, passdef, mtdef, builtinpass, overlaypass, nooverlaydef, returnpass)
 end
 
 end # module CassetteOverlay
