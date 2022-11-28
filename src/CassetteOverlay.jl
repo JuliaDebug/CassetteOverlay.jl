@@ -5,29 +5,19 @@ export @MethodTable, @overlay, @OverlayPass
 const CC = Core.Compiler
 
 using Core.IR
-import Core: MethodInstance, SimpleVector, MethodTable
-import Core.Compiler: quoted
-import Base.Meta: isexpr
-import Base.Experimental: @MethodTable, @overlay
+using Core: MethodInstance, SimpleVector, MethodTable
+using Base.Experimental: @MethodTable, @overlay
 
 abstract type OverlayPass end
 method_table(::Type{<:OverlayPass}) = error("CassetteOverlay is available via the @OverlayPass macro")
 
-function overlay_generator(pass, f, args)
-    tt = signature_type′(f, args)
-    match = _which(tt; method_table=method_table(pass))
-
+function overlay_generator(passtype, fargtypes)
+    tt = Base.to_tuple_type(fargtypes)
+    match = _which(tt; method_table=method_table(passtype))
     mi = Core.Compiler.specialize_method(match)::MethodInstance
-
     src = copy(Core.Compiler.retrieve_code_info(mi)::CodeInfo)
-    overlay_transform!(src, mi, length(args))
+    overlay_transform!(src, mi, length(fargtypes))
     return src
-end
-
-function signature_type′(@nospecialize(ft), @nospecialize(argtypes))
-    argtypes = Base.to_tuple_type(argtypes)
-    u = Base.unwrap_unionall(argtypes)::DataType
-    return Base.rewrap_unionall(Tuple{ft, u.parameters...}, argtypes)
 end
 
 function _which(@nospecialize(tt::Type);
@@ -49,22 +39,23 @@ function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
     method = mi.def::Method
     mnargs = Int(method.nargs)
 
-    src.slotnames = Symbol[Symbol("#self#"), :f, :args, src.slotnames[mnargs+1:end]...]
+    src.slotnames = Symbol[Symbol("#self#"), :fargs, src.slotnames[mnargs+1:end]...]
     src.slotflags = UInt8[(0x00 for i = 1:3)..., src.slotflags[mnargs+1:end]...]
 
     code = src.code
+    fargsslot = SlotNumber(2)
     precode = Any[]
     local ssaid = 0
-    for i = 1:(mnargs-1)
-        if method.isva && i == (mnargs-1)
+    for i = 1:mnargs
+        if method.isva && i == mnargs
             args = map(i:nargs) do j
-                push!(precode, Expr(:call, getfield, SlotNumber(3), j))
+                push!(precode, Expr(:call, getfield, fargsslot, j))
                 ssaid += 1
                 return SSAValue(ssaid)
             end
             push!(precode, Expr(:call, tuple, args...))
         else
-            push!(precode, Expr(:call, getfield, SlotNumber(3), i))
+            push!(precode, Expr(:call, getfield, fargsslot, i))
         end
         ssaid += 1
     end
@@ -74,19 +65,15 @@ function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
     src.ssavaluetypes += ssaid
 
     function map_slot_number(slot::Int)
-        if slot == 1
-            # self in the original function is now `f`
-            return SlotNumber(2)
-        elseif 2 ≤ slot ≤ mnargs
+        @assert slot ≥ 1
+        if 1 ≤ slot ≤ mnargs
             if method.isva && slot == mnargs
                 return SSAValue(ssaid)
             else
-                # Arguments get inserted as ssa values at the top of the function
-                return SSAValue(slot-1)
+                return SSAValue(slot)
             end
         else
-            # The first non-argument slot will be 4
-            return SlotNumber(slot - mnargs + 3)
+            return SlotNumber(slot - mnargs + 2)
         end
     end
     map_ssa_value(id::Int) = id + ssaid
@@ -140,9 +127,8 @@ macro OverlayPass(method_table::Symbol)
         return f(args...)
     end)
 
-    overlaypass = :(@generated function (pass::$PassName)(f, args...)
-        src = $overlay_generator(pass, f, args)
-        return src
+    overlaypass = :(@generated function (pass::$PassName)(fargs...)
+        return $overlay_generator(pass, fargs)
     end)
 
     returnpass = :(return $PassName())
