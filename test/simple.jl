@@ -57,4 +57,14 @@ varargs(a, b, c...) = (a, b, c)
 @test pass(varargs, 1, 2, 3) == (1,2,(3,))
 @test pass(varargs, 1, 2, 3, 4) == (1,2,(3,4))
 
+# https://github.com/JuliaDebug/CassetteOverlay.jl/issues/8
+module Issue8
+using CassetteOverlay
+@MethodTable Issue8Table;
+@overlay Issue8Table Base.identity(@nospecialize x) = nothing
+end
+let pass = @overlaypass Issue8.Issue8Table
+    @test pass(identity, 42) == nothing
+end
+
 end
