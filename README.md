@@ -15,11 +15,11 @@ julia> @test pass(42) do a
        end == cos(42)^2
 Test Passed
 
-# invalidate the overlayed method and disable the overlay
-julia> @overlay SinTable sin(x::Union{Float32,Float64}) = nooverlay(sin, x)
+# invalidate the overlayed method and make it return `cos∘sin`
+julia> @overlay SinTable sin(x::Union{Float32,Float64}) = cos(x)*nooverlay(sin, x);
 
 julia> @test pass(42) do a
            sin(a) * cos(a)
-       end == sin(42) * cos(42)
+       end == cos(42)^2 * sin(42)
 Test Passed
 ```

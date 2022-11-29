@@ -8,15 +8,16 @@ using CassetteOverlay, Test
 
 pass = @OverlayPass SinTable;
 
-# Run overlayed methods
+# run with the overlayed method
 @test pass(42) do a
     sin(a) * cos(a)
 end == cos(42)^2
 
-@overlay SinTable sin(x::Union{Float32,Float64}) = 0.0
+# invalidate the overlayed method and make it return `cos∘sin`
+@overlay SinTable sin(x::Union{Float32,Float64}) = cos(x)*nooverlay(sin, x);
 
 @test pass(42) do a
     sin(a) * cos(a)
-end == 0.0
-
+end == cos(42)^2 * sin(42)
+       
 end # module math
