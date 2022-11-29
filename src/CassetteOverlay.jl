@@ -5,7 +5,7 @@ export @MethodTable, @overlay, @overlaypass, nonoverlay, @nonoverlay
 using Core.IR
 using Core: MethodInstance, SimpleVector, MethodTable
 using Core.Compiler: specialize_method, retrieve_code_info
-using Base: to_tuple_type, get_world_counter
+using Base: destructure_callex, to_tuple_type, get_world_counter
 using Base.Experimental: @MethodTable, @overlay
 
 abstract type OverlayPass end
@@ -19,7 +19,12 @@ nonoverlay(args...; kwargs...) = cassette_overlay_error()
 @specialize
 
 macro nonoverlay(ex)
-    f, args, kwargs = Base.destructure_callex(ex)
+    @static if VERSION ≥ v"1.10.0-DEV.68"
+        topmod = Core.Compiler._topmod(__module__)
+        f, args, kwargs = Base.destructure_callex(topmod, ex)
+    else
+        f, args, kwargs = Base.destructure_callex(ex)
+    end
     out = Expr(:call, GlobalRef(@__MODULE__, :nonoverlay))
     isempty(kwargs) || push!(out.args, Expr(:parameters, kwargs...))
     push!(out.args, f)
