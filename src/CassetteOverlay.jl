@@ -2,25 +2,25 @@ module CassetteOverlay
 
 export @MethodTable, @overlay, @OverlayPass, nooverlay
 
-const CC = Core.Compiler
-
 using Core.IR
 using Core: MethodInstance, SimpleVector, MethodTable
+using Core.Compiler: specialize_method, retrieve_code_info
+using Base: to_tuple_type, get_world_counter
 using Base.Experimental: @MethodTable, @overlay
 
 abstract type OverlayPass end
 function method_table end
 function nooverlay end
-method_table(::Type{<:OverlayPass}) =
-    error("CassetteOverlay is available via the @OverlayPass macro")
-nooverlay(@nospecialize args...) =
-    error("CassetteOverlay is available via the @OverlayPass macro")
+
+cassette_overlay_error() = error("CassetteOverlay is available via `@OverlayPass` macro")
+method_table(::Type{<:OverlayPass}) = cassette_overlay_error()
+nooverlay(@nospecialize args...) = cassette_overlay_error()
 
 function overlay_generator(passtype, fargtypes)
-    tt = Base.to_tuple_type(fargtypes)
+    tt = to_tuple_type(fargtypes)
     match = _which(tt; method_table=method_table(passtype))
-    mi = Core.Compiler.specialize_method(match)::MethodInstance
-    src = copy(Core.Compiler.retrieve_code_info(mi)::CodeInfo)
+    mi = specialize_method(match)::MethodInstance
+    src = copy(retrieve_code_info(mi)::CodeInfo)
     overlay_transform!(src, mi, length(fargtypes))
     return src
 end
@@ -30,13 +30,13 @@ end
 else
     function _which(@nospecialize(tt::Type);
         method_table::Union{Nothing,MethodTable}=nothing,
-        world::UInt=Base.get_world_counter())
+        world::UInt=get_world_counter())
         if method_table === nothing
-            table = CC.InternalMethodTable(world)
+            table = Core.Compiler.InternalMethodTable(world)
         else
-            table = CC.OverlayMethodTable(world, method_table)
+            table = Core.Compiler.OverlayMethodTable(world, method_table)
         end
-        match, = CC.findsup(tt, table)
+        match, = Core.Compiler.findsup(tt, table)
         if match === nothing
             error("no unique matching method found for the specified argument types")
         end
