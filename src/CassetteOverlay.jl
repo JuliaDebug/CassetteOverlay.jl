@@ -1,6 +1,6 @@
 module CassetteOverlay
 
-export @MethodTable, @overlay, @overlaypass, nooverlay
+export @MethodTable, @overlay, @overlaypass, nonoverlay, @nonoverlay
 
 using Core.IR
 using Core: MethodInstance, SimpleVector, MethodTable
@@ -10,11 +10,22 @@ using Base.Experimental: @MethodTable, @overlay
 
 abstract type OverlayPass end
 function method_table end
-function nooverlay end
+function nonoverlay end
 
+@nospecialize
 cassette_overlay_error() = error("CassetteOverlay is available via `@overlaypass` macro")
 method_table(::Type{<:OverlayPass}) = cassette_overlay_error()
-nooverlay(@nospecialize args...) = cassette_overlay_error()
+nonoverlay(args...; kwargs...) = cassette_overlay_error()
+@specialize
+
+macro nonoverlay(ex)
+    f, args, kwargs = Base.destructure_callex(ex)
+    out = Expr(:call, GlobalRef(@__MODULE__, :nonoverlay))
+    isempty(kwargs) || push!(out.args, Expr(:parameters, kwargs...))
+    push!(out.args, f)
+    append!(out.args, args)
+    return esc(out)
+end
 
 function overlay_generator(passtype, fargtypes)
     tt = to_tuple_type(fargtypes)
@@ -126,6 +137,12 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, sparam
     end
 end
 
+@static if !isdefined(Core, :kwcall)
+    struct NonoverlayKwcall{F}
+        NonoverlayKwcall(@nospecialize f) = new{Core.Typeof(f)}(f)
+    end
+end
+
 macro overlaypass(method_table::Symbol)
     PassName = esc(gensym(method_table))
 
@@ -142,15 +159,40 @@ macro overlaypass(method_table::Symbol)
         return $overlay_generator(pass, fargs)
     end)
 
-    nooverlaytype = typeof(CassetteOverlay.nooverlay)
-    nooverlaydef = :(@inline function (pass::$PassName)(::$nooverlaytype, f, args...)
-        @nospecialize f args
-        return f(args...)
-    end)
+    nonoverlaytype = typeof(CassetteOverlay.nonoverlay)
+    nonoverlaydef = quote
+        @nospecialize
+        @inline function (pass::$PassName)(::$nonoverlaytype, f, args...; kwargs...)
+            return f(args...; kwargs...)
+        end
+        @specialize
+    end
+    @static if isdefined(Core, :kwcall)
+        nonoverlaykwcalldef = :(@inline function (pass::$PassName)(::typeof(Core.kwcall), kwargs::Any, ::$nonoverlaytype, fargs...)
+            @nospecialize kwargs fargs
+            return Core.kwcall(kwargs, fargs...)
+        end)
+    else
+        kwfunctype = typeof(Core.kwfunc(nonoverlay))
+        nonoverlaykwcalldef = quote
+            @inline function (pass::$PassName)(::$kwfunctype, kwargs::Any, ::$nonoverlaytype, f, args...)
+                @nospecialize kwargs fargs
+                kwf = Core.kwfunc(f)
+                return kwf(kwargs, f, args...)
+            end
+        end
+    end
 
     returnpass = :(return $PassName())
 
-    return Expr(:toplevel, passdef, mtdef, builtindef, overlaydef, nooverlaydef, returnpass)
+    return Expr(:toplevel,
+                passdef,
+                mtdef,
+                builtindef,
+                overlaydef,
+                nonoverlaydef,
+                nonoverlaykwcalldef,
+                returnpass)
 end
 
 end # module CassetteOverlay
