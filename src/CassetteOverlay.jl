@@ -49,7 +49,7 @@ function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
     mnargs = Int(method.nargs)
 
     src.slotnames = Symbol[Symbol("#self#"), :fargs, src.slotnames[mnargs+1:end]...]
-    src.slotflags = UInt8[(0x00 for i = 1:3)..., src.slotflags[mnargs+1:end]...]
+    src.slotflags = UInt8[ 0x00,             0x00,   src.slotflags[mnargs+1:end]...]
 
     code = src.code
     fargsslot = SlotNumber(2)
@@ -117,6 +117,8 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, sparam
         return ReturnNode(transform(x.val))
     elseif isa(x, SlotNumber)
         return map_slot_number(x.id)
+    elseif isa(x, NewvarNode)
+        return NewvarNode(map_slot_number(x.slot.id))
     elseif isa(x, SSAValue)
         return SSAValue(map_ssa_value(x.id))
     else

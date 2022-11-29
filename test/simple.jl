@@ -7,13 +7,25 @@ using CassetteOverlay, Test
 pass = @overlaypass SimpleTable
 
 myidentity(@nospecialize x) = x
+kwifelse(x, y; cond=true) = ifelse(cond, x, y)
 
-# Run overlayed methods
+# run overlayed methods
 @overlay SimpleTable myidentity(@nospecialize x) = 42
 @test pass(myidentity, nothing) == 42
 @test pass() do
     myidentity(nothing)
 end == 42
+
+# kwargs
+@overlay SimpleTable kwifelse(x, y; cond=true) = ifelse(cond, y, x)
+let (x, y) = (0, 1)
+    @test pass() do
+        kwifelse(x, y)
+    end == y
+    @test pass() do
+        kwifelse(x, y; cond=false)
+    end == x
+end
 
 # method invalidation
 @overlay SimpleTable myidentity(@nospecialize x) = 0
