@@ -7,7 +7,7 @@ julia> @MethodTable SinTable;
 
 julia> @overlay SinTable sin(x::Union{Float32,Float64}) = cos(x);
 
-julia> pass = @OverlayPass SinTable;
+julia> pass = @overlaypass SinTable;
 
 # run with the overlayed method
 julia> @test pass(42) do a

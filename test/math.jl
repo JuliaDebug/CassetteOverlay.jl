@@ -6,7 +6,7 @@ using CassetteOverlay, Test
 
 @overlay SinTable sin(x::Union{Float32,Float64}) = cos(x);
 
-pass = @OverlayPass SinTable;
+pass = @overlaypass SinTable;
 
 # run with the overlayed method
 @test pass(42) do a

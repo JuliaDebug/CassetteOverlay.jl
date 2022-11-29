@@ -4,7 +4,7 @@ using CassetteOverlay, Test
 
 @MethodTable SimpleTable;
 
-pass = @OverlayPass SimpleTable
+pass = @overlaypass SimpleTable
 
 myidentity(@nospecialize x) = x
 
