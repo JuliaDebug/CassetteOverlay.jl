@@ -148,8 +148,8 @@ end
     end
 end
 
-macro overlaypass(method_table::Symbol)
-    PassName = esc(gensym(method_table))
+macro overlaypass(method_table)
+    PassName = esc(gensym(string(method_table)))
 
     passdef = :(struct $PassName <: $OverlayPass end)
 
