@@ -20,19 +20,23 @@ function overlay_generator(passtype, fargtypes)
     return src
 end
 
-function _which(@nospecialize(tt::Type);
-    method_table::Union{Nothing,MethodTable}=nothing,
-    world::UInt=Base.get_world_counter())
-    if method_table === nothing
-        table = CC.InternalMethodTable(world)
-    else
-        table = CC.OverlayMethodTable(world, method_table)
+@static if VERSION ≥ v"1.10.0-DEV.65"
+    using Base: _which
+else
+    function _which(@nospecialize(tt::Type);
+        method_table::Union{Nothing,MethodTable}=nothing,
+        world::UInt=Base.get_world_counter())
+        if method_table === nothing
+            table = CC.InternalMethodTable(world)
+        else
+            table = CC.OverlayMethodTable(world, method_table)
+        end
+        match, = CC.findsup(tt, table)
+        if match === nothing
+            error("no unique matching method found for the specified argument types")
+        end
+        return match
     end
-    match, = CC.findsup(tt, table)
-    if match === nothing
-        error("no unique matching method found for the specified argument types")
-    end
-    return match
 end
 
 function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
