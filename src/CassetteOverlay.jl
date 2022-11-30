@@ -120,6 +120,7 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, sparam
         if head === :call
             return Expr(:call, SlotNumber(1), map(transform, x.args)...)
         elseif head === :foreigncall
+            # first argument of :foreigncall is a magic tuple and should be preserved
             return Expr(:foreigncall, x.args[1], map(transform, x.args[2:end])...)
         elseif head === :enter
             return Expr(:enter, map_ssa_value(x.args[1]::Int))
