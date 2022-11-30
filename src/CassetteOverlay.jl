@@ -1,6 +1,6 @@
 module CassetteOverlay
 
-export @MethodTable, @overlay, @overlaypass, nonoverlay, @nonoverlay
+export @MethodTable, @overlay, OverlayPass, method_table, nonoverlay, @nonoverlay
 
 using Core.IR
 using Core: MethodInstance, SimpleVector, MethodTable
@@ -11,12 +11,6 @@ using Base.Experimental: @MethodTable, @overlay
 abstract type OverlayPass end
 function method_table end
 function nonoverlay end
-
-@nospecialize
-cassette_overlay_error() = error("CassetteOverlay is available via `@overlaypass` macro")
-method_table(::Type{<:OverlayPass}) = cassette_overlay_error()
-nonoverlay(args...; kwargs...) = cassette_overlay_error()
-@specialize
 
 macro nonoverlay(ex)
     @static if VERSION ≥ v"1.10.0-DEV.68"
@@ -34,7 +28,8 @@ end
 
 function overlay_generator(passtype, fargtypes)
     tt = to_tuple_type(fargtypes)
-    match = _which(tt; method_table=method_table(passtype), raise=false)
+    mt = Base.invoke_in_world(typemax(UInt), method_table, passtype)
+    match = _which(tt; method_table=mt, raise=false)
     match === nothing && return nothing
     mi = specialize_method(match)::MethodInstance
     src = copy(retrieve_code_info(mi)::CodeInfo)
@@ -154,56 +149,41 @@ end
     end
 end
 
-macro overlaypass(method_table)
-    PassName = esc(gensym(string(method_table)))
-    nonoverlaytype = typeof(CassetteOverlay.nonoverlay)
+@inline function (::OverlayPass)(f::Union{Core.Builtin,Core.IntrinsicFunction}, args...)
+    @nospecialize f args
+    return f(args...)
+end
+@inline function (::OverlayPass)(f::typeof(Core.Compiler.return_type), args...)
+    @nospecialize args
+    return f(args...)
+end
 
-    blk = quote
-        struct $PassName <: $OverlayPass end
-
-        $CassetteOverlay.method_table(::Type{$PassName}) = $(esc(method_table))
-
-        @inline function (::$PassName)(f::Union{Core.Builtin,Core.IntrinsicFunction}, args...)
-            @nospecialize f args
-            return f(args...)
-        end
-        @inline function (::$PassName)(f::typeof(Core.Compiler.return_type), args...)
-            @nospecialize args
-            return f(args...)
-        end
-
-        @generated function (pass::$PassName)($(esc(:fargs))...)
-            src = $overlay_generator(pass, fargs)
-            if src === nothing
-                # a code generation failed – make it raise a proper MethodError
-                return :(first(fargs)(Base.tail(fargs)...))
-            end
-            return src
-        end
-
-        @nospecialize
-        @inline function (pass::$PassName)(::$nonoverlaytype, f, args...; kwargs...)
-            return f(args...; kwargs...)
-        end
-        @specialize
-
-        @static if isdefined(Core, :kwcall)
-            @inline function (pass::$PassName)(::typeof(Core.kwcall), kwargs::Any, ::$nonoverlaytype, fargs...)
-                @nospecialize kwargs fargs
-                return Core.kwcall(kwargs, fargs...)
-            end
-        else
-            @inline function (pass::$PassName)(::typeof(Core.kwfunc(nonoverlay)), kwargs::Any, ::$nonoverlaytype, f, args...)
-                @nospecialize kwargs fargs
-                kwf = Core.kwfunc(f)
-                return kwf(kwargs, f, args...)
-            end
-        end
-
-        return $PassName()
+@generated function (pass::OverlayPass)(fargs...)
+    src = overlay_generator(pass, fargs)
+    if src === nothing
+        # a code generation failed – make it raise a proper MethodError
+        return :(first(fargs)(Base.tail(fargs)...))
     end
+    return src
+end
 
-    return Expr(:toplevel, blk.args...)
+@nospecialize
+@inline function (::OverlayPass)(::typeof(nonoverlay), f, args...; kwargs...)
+    return f(args...; kwargs...)
+end
+@specialize
+
+@static if isdefined(Core, :kwcall)
+    @inline function (::OverlayPass)(::typeof(Core.kwcall), kwargs::Any, ::typeof(nonoverlay), fargs...)
+        @nospecialize kwargs fargs
+        return Core.kwcall(kwargs, fargs...)
+    end
+else
+    @inline function (::OverlayPass)(::typeof(Core.kwfunc(nonoverlay)), kwargs::Any, ::typeof(nonoverlay), f, args...)
+        @nospecialize kwargs fargs
+        kwf = Core.kwfunc(f)
+        return kwf(kwargs, f, args...)
+    end
 end
 
 end # module CassetteOverlay
