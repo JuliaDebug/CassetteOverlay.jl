@@ -16,4 +16,9 @@ end == Float64[]
 using NaNMath
 @test pass(NaNMath.sin, 1.0) === NaNMath.sin(1.0)
 
+# Issue #16 – give a proper method error
+@test_throws "MethodError: no method matching sin(::String)" pass() do
+    sin("1")
+end
+
 end

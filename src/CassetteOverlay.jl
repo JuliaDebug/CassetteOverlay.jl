@@ -34,19 +34,21 @@ end
 
 function overlay_generator(passtype, fargtypes)
     tt = to_tuple_type(fargtypes)
-    match = _which(tt; method_table=method_table(passtype))
+    match = _which(tt; method_table=method_table(passtype), raise=false)
+    match === nothing && return nothing
     mi = specialize_method(match)::MethodInstance
     src = copy(retrieve_code_info(mi)::CodeInfo)
     overlay_transform!(src, mi, length(fargtypes))
     return src
 end
 
-@static if VERSION ≥ v"1.10.0-DEV.65"
-    using Base: _which
-else
+# @static if VERSION ≥ v"1.10.0-DEV.65"
+#     using Base: _which
+# else
     function _which(@nospecialize(tt::Type);
         method_table::Union{Nothing,MethodTable}=nothing,
-        world::UInt=get_world_counter())
+        world::UInt=get_world_counter(),
+        raise::Bool=false)
         if method_table === nothing
             table = Core.Compiler.InternalMethodTable(world)
         else
@@ -54,11 +56,12 @@ else
         end
         match, = Core.Compiler.findsup(tt, table)
         if match === nothing
-            error("no unique matching method found for the specified argument types")
+            raise && error("no unique matching method found for the specified argument types")
+            return nothing
         end
         return match
     end
-end
+# end
 
 function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
     method = mi.def::Method
@@ -169,8 +172,13 @@ macro overlaypass(method_table)
             return f(args...)
         end
 
-        @generated function (pass::$PassName)(fargs...)
-            return $overlay_generator(pass, fargs)
+        @generated function (pass::$PassName)($(esc(:fargs))...)
+            src = $overlay_generator(pass, fargs)
+            if src === nothing
+                # a code generation failed – make it raise a proper MethodError
+                return :(first(fargs)(Base.tail(fargs)...))
+            end
+            return src
         end
 
         @nospecialize
