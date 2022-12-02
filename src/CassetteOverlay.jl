@@ -42,9 +42,9 @@ function overlay_generator(passtype, fargtypes)
     return src
 end
 
-# @static if VERSION ≥ v"1.10.0-DEV.65"
-#     using Base: _which
-# else
+@static if VERSION ≥ v"1.10.0-DEV.81"
+    using Base: _which
+else
     function _which(@nospecialize(tt::Type);
         method_table::Union{Nothing,MethodTable}=nothing,
         world::UInt=get_world_counter(),
@@ -61,7 +61,7 @@ end
         end
         return match
     end
-# end
+end
 
 function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
     method = mi.def::Method
