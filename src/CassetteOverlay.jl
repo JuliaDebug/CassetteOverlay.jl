@@ -154,12 +154,28 @@ end
     end
 end
 
-macro overlaypass(method_table)
-    PassName = esc(gensym(string(method_table)))
+macro overlaypass(args...)
+    if length(args) == 1
+        PassName = nothing
+        method_table = args[1]
+    else
+        PassName, method_table = args
+    end
+
+    if PassName === nothing
+        PassName = esc(gensym(string(method_table)))
+        decl_pass = :(struct $PassName <: $OverlayPass end)
+        ret = :($PassName())
+    else
+        PassName = esc(PassName)
+        decl_pass = :(@assert $PassName <: $OverlayPass)
+        ret = nothing
+    end
+
     nonoverlaytype = typeof(CassetteOverlay.nonoverlay)
 
     blk = quote
-        struct $PassName <: $OverlayPass end
+        $decl_pass
 
         $CassetteOverlay.method_table(::Type{$PassName}) = $(esc(method_table))
 
@@ -200,7 +216,7 @@ macro overlaypass(method_table)
             end
         end
 
-        return $PassName()
+        return $ret
     end
 
     return Expr(:toplevel, blk.args...)
