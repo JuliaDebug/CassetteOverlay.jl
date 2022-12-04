@@ -233,6 +233,9 @@ end
 
 abstract type AbstractBindingOverlay{M, S} <: OverlayPass; end
 function method_table(::Type{<:AbstractBindingOverlay{M, S}}) where {M, S}
+    if M === nothing
+        return nothing
+    end
     @assert isconst(M, S)
     return getglobal(M, S)::Core.MethodTable
 end
