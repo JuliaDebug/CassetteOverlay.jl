@@ -174,10 +174,15 @@ macro overlaypass(args...)
 
     nonoverlaytype = typeof(CassetteOverlay.nonoverlay)
 
+    if method_table !== :nothing
+        mthd_tbl = :($CassetteOverlay.method_table(::Type{$PassName}) = $(esc(method_table)))
+    else
+        mthd_tbl = nothing
+    end
+
     blk = quote
         $decl_pass
-
-        $CassetteOverlay.method_table(::Type{$PassName}) = $(esc(method_table))
+        $mthd_tbl
 
         @inline function (::$PassName)(f::Union{Core.Builtin,Core.IntrinsicFunction}, args...)
             @nospecialize f args
@@ -186,6 +191,10 @@ macro overlaypass(args...)
         @inline function (::$PassName)(f::typeof(Core.Compiler.return_type), args...)
             @nospecialize args
             return f(args...)
+        end
+        @inline function (self::$PassName)(::typeof(Core._apply_iterate), iterate, f, args...)
+            @nospecialize args
+            return Core.Compiler._apply_iterate(iterate, self, (f,), args...)
         end
 
         @generated function (pass::$PassName)($(esc(:fargs))...)
@@ -220,6 +229,20 @@ macro overlaypass(args...)
     end
 
     return Expr(:toplevel, blk.args...)
+end
+
+abstract type AbstractBindingOverlay{M, S} <: OverlayPass; end
+function method_table(::Type{<:AbstractBindingOverlay{M, S}}) where {M, S}
+    @assert isconst(M, S)
+    return getglobal(M, S)::Core.MethodTable
+end
+@overlaypass AbstractBindingOverlay nothing
+
+struct Overlay{M, S} <: AbstractBindingOverlay{M, S}; end
+function Overlay(mt::Core.MethodTable)
+    @assert isconst(mt.module, mt.name)
+    @assert getglobal(mt.module, mt.name) === mt
+    return Overlay{mt.module, mt.name}()
 end
 
 end # module CassetteOverlay
