@@ -1,6 +1,7 @@
 module CassetteOverlay
 
-export @MethodTable, @overlay, @overlaypass, nonoverlay, @nonoverlay
+export @MethodTable, @overlay, @overlaypass, nonoverlay, @nonoverlay,
+       AbstractBindingOverlay, Overlay
 
 using Core.IR
 using Core: MethodInstance, SimpleVector, MethodTable
@@ -237,12 +238,12 @@ function method_table(::Type{<:AbstractBindingOverlay{M, S}}) where {M, S}
         return nothing
     end
     @assert isconst(M, S)
-    return getglobal(M, S)::Core.MethodTable
+    return getglobal(M, S)::MethodTable
 end
 @overlaypass AbstractBindingOverlay nothing
 
 struct Overlay{M, S} <: AbstractBindingOverlay{M, S}; end
-function Overlay(mt::Core.MethodTable)
+function Overlay(mt::MethodTable)
     @assert isconst(mt.module, mt.name)
     @assert getglobal(mt.module, mt.name) === mt
     return Overlay{mt.module, mt.name}()
