@@ -1,6 +1,6 @@
 name = "CassetteOverlay"
 uuid = "d78b62d4-37fa-4a6f-acd8-2f19986eb9ee"
-authors = ["Shuhei Kadowaki <aviatesk@gmail.com>"]
+authors = ["JuliaHub, Inc. and other contributors"]
 version = "0.1.0"
 
 [deps]
