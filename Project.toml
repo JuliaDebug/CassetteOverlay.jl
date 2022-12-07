@@ -1,17 +1,9 @@
 name = "CassetteOverlay"
 uuid = "d78b62d4-37fa-4a6f-acd8-2f19986eb9ee"
 authors = ["JuliaHub, Inc. and other contributors"]
-version = "0.1.0"
+version = "0.0.1"
 
 [deps]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
 
 [compat]
-julia = "1.8"
-
-[extras]
-Test = "8dfed614-e22c-5e08-85e1-65c5234f0b40"
-NaNMath = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
-
-[targets]
-test = ["Test", "NaNMath"]
+julia = "~1.7"

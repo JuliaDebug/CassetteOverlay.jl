@@ -1,25 +1,3 @@
-# CassetteOverlay.jl
-
-```julia
-julia> using CassetteOverlay, Test
-
-julia> @MethodTable SinTable;
-
-julia> @overlay SinTable sin(x::Union{Float32,Float64}) = cos(x);
-
-julia> pass = @overlaypass SinTable;
-
-# run with the overlayed method
-julia> @test pass(42) do a
-           sin(a) * cos(a)
-       end == cos(42)^2
-Test Passed
-
-# invalidate the overlayed method and make it return `cos∘sin`
-julia> @overlay SinTable sin(x::Union{Float32,Float64}) = cos(x) * @nonoverlay sin(x);
-
-julia> @test pass(42) do a
-           sin(a) * cos(a)
-       end == cos(42)^2 * sin(42)
-Test Passed
-```
+This branch is just a "stub" to allow the package to be installed (but not used) on older versions of Julia.
+This is convenient for packages that want to make CassetteOverlay a dependency and which load some features
+in a version-dependent manner.
