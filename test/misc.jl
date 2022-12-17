@@ -21,4 +21,6 @@ using NaNMath
     sin("1")
 end
 
+@test isa(pass(pointer, Int[1]), Ptr{Int})
+
 end
