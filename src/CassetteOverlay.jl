@@ -107,7 +107,7 @@ function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
     end
     map_ssa_value(id::Int) = id + ssaid
     for i = (ssaid+1:length(code))
-        code[i] = transform_stmt(code[i], map_slot_number, map_ssa_value, mi.sparam_vals)
+        code[i] = transform_stmt(code[i], map_slot_number, map_ssa_value, mi.def.sig, mi.sparam_vals)
     end
 
     src.edges = MethodInstance[mi]
@@ -116,8 +116,8 @@ function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
     return src
 end
 
-function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, sparams::SimpleVector)
-    transform(@nospecialize x′) = transform_stmt(x′, map_slot_number, map_ssa_value, sparams)
+function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospecialize(spsig), sparams::SimpleVector)
+    transform(@nospecialize x′) = transform_stmt(x′, map_slot_number, map_ssa_value, spsig, sparams)
 
     if isa(x, Expr)
         head = x.head
@@ -125,7 +125,11 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, sparam
             return Expr(:call, SlotNumber(1), map(transform, x.args)...)
         elseif head === :foreigncall
             # first argument of :foreigncall is a magic tuple and should be preserved
-            return Expr(:foreigncall, x.args[1], map(transform, x.args[2:end])...)
+            arg2 = ccall(:jl_instantiate_type_in_env, Any, (Any, Any, Ptr{Any}), x.args[2], spsig, sparams)
+            arg3 = Core.svec(Any[
+                    ccall(:jl_instantiate_type_in_env, Any, (Any, Any, Ptr{Any}), argt, spsig, sparams)
+                    for argt in x.args[3]::SimpleVector ]...)
+            return Expr(:foreigncall, x.args[1], arg2, arg3, map(transform, x.args[4:end])...)
         elseif head === :enter
             return Expr(:enter, map_ssa_value(x.args[1]::Int))
         elseif head === :static_parameter
