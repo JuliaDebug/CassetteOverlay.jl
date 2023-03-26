@@ -33,12 +33,19 @@ macro nonoverlay(ex)
     return esc(out)
 end
 
-function overlay_generator(passtype, fargtypes)
+# JuliaLang/julia#48611: world age is exposed to generated functions, and should be used
+const has_generated_worlds = fieldcount(Core.GeneratedFunctionStub) == 3
+
+function overlay_generator(passtype, fargtypes, world=Base.get_world_counter())
     tt = to_tuple_type(fargtypes)
-    match = _which(tt; method_table=method_table(passtype), raise=false)
+    match = _which(tt; method_table=method_table(passtype), raise=false, world)
     match === nothing && return nothing
     mi = specialize_method(match)::MethodInstance
-    src = copy(retrieve_code_info(mi)::CodeInfo)
+    src = if has_generated_worlds
+        copy(retrieve_code_info(mi, world)::CodeInfo)
+    else
+        copy(retrieve_code_info(mi)::CodeInfo)
+    end
     overlay_transform!(src, mi, length(fargtypes))
     return src
 end
@@ -159,6 +166,16 @@ end
     end
 end
 
+function pass_generator(world::UInt, source, pass, fargs)
+    src = overlay_generator(pass, fargs, world)
+    if src === nothing
+        # code generation failed – make it raise a proper MethodError
+        stub = Core.GeneratedFunctionStub(identity, Core.svec(:pass, :fargs), Core.svec())
+        return stub(world, source, :(return first(fargs)(Base.tail(fargs)...)))
+    end
+    return src
+end
+
 macro overlaypass(args...)
     if length(args) == 1
         PassName = nothing
@@ -201,16 +218,30 @@ macro overlaypass(args...)
             @nospecialize args
             return Core.Compiler._apply_iterate(iterate, self, (f,), args...)
         end
+    end
 
-        @generated function (pass::$PassName)($(esc(:fargs))...)
-            src = $overlay_generator(pass, fargs)
-            if src === nothing
-                # a code generation failed – make it raise a proper MethodError
-                return :(first(fargs)(Base.tail(fargs)...))
+    blk2 = if has_generated_worlds
+        quote
+            function (pass::$PassName)(fargs...)
+                $(Expr(:meta, :generated_only))
+                $(Expr(:meta, :generated, pass_generator))
             end
-            return src
         end
+    else
+        quote
+            @generated function (pass::$PassName)($(esc(:fargs))...)
+                src = $overlay_generator(pass, fargs)
+                if src === nothing
+                    # a code generation failed – make it raise a proper MethodError
+                    return :(first(fargs)(Base.tail(fargs)...))
+                end
+                return src
+            end
+        end
+    end
+    append!(blk.args, blk2.args)
 
+    blk3 = quote
         @nospecialize
         @inline function (pass::$PassName)(::$nonoverlaytype, f, args...; kwargs...)
             return f(args...; kwargs...)
@@ -232,6 +263,7 @@ macro overlaypass(args...)
 
         return $ret
     end
+    append!(blk.args, blk3.args)
 
     return Expr(:toplevel, blk.args...)
 end
