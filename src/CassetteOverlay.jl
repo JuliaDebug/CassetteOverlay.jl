@@ -34,14 +34,18 @@ macro nonoverlay(ex)
 end
 
 # JuliaLang/julia#48611: world age is exposed to generated functions, and should be used
-const has_generated_worlds = fieldcount(Core.GeneratedFunctionStub) == 3
+const has_generated_worlds = let
+    v = VERSION ≥ v"1.10.0-DEV.873"
+    v && @assert fieldcount(Core.GeneratedFunctionStub) == 3
+    v
+end
 
 function overlay_generator(passtype, fargtypes, world=Base.get_world_counter())
     tt = to_tuple_type(fargtypes)
     match = _which(tt; method_table=method_table(passtype), raise=false, world)
     match === nothing && return nothing
     mi = specialize_method(match)::MethodInstance
-    src = if has_generated_worlds
+    src = @static if has_generated_worlds
         copy(retrieve_code_info(mi, world)::CodeInfo)
     else
         copy(retrieve_code_info(mi)::CodeInfo)
@@ -220,7 +224,7 @@ macro overlaypass(args...)
         end
     end
 
-    blk2 = if has_generated_worlds
+    blk2 = @static if has_generated_worlds
         quote
             function (pass::$PassName)(fargs...)
                 $(Expr(:meta, :generated_only))
