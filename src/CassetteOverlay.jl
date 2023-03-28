@@ -170,7 +170,7 @@ end
     end
 end
 
-function pass_generator(world::UInt, source, pass, fargs)
+function pass_generator(world::UInt, source::LineNumberNode, pass, fargs)
     src = overlay_generator(pass, fargs, world)
     if src === nothing
         # code generation failed – make it raise a proper MethodError
