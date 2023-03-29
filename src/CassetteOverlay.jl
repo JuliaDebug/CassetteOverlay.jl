@@ -54,13 +54,20 @@ function overlay_generator(passtype, fargtypes, world=Base.get_world_counter())
     return src
 end
 
-@static if VERSION ≥ v"1.10.0-DEV.81"
+# TODO investigate why `pass_generator` is called with `world === typemax(UInt)`
+#      and hit the error in the `Base._which` version
+@static if false # VERSION ≥ v"1.10.0-DEV.81"
     using Base: _which
 else
+    # HACK This definition is same as the one defined in
+    # https://github.com/JuliaLang/julia/blob/38d24e574caab20529a61a6f7444c9e473724ccc/base/reflection.jl#L1565
+    # modulo that this version allows us to use it within a `@generated` context
+    # (see the commented out `world == typemax(UInt) && error(...)` line below).
     function _which(@nospecialize(tt::Type);
         method_table::Union{Nothing,MethodTable}=nothing,
         world::UInt=get_world_counter(),
         raise::Bool=false)
+        # world == typemax(UInt) && error("code reflection cannot be used from generated functions")
         if method_table === nothing
             table = Core.Compiler.InternalMethodTable(world)
         else
@@ -161,12 +168,6 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospe
         return SSAValue(map_ssa_value(x.id))
     else
         return x
-    end
-end
-
-@static if !isdefined(Core, :kwcall)
-    struct NonoverlayKwcall{F}
-        NonoverlayKwcall(@nospecialize f) = new{Core.Typeof(f)}(f)
     end
 end
 
