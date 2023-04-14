@@ -20,4 +20,14 @@ let pass! = CosCounter(0)
     @test pass!.ncos == 2
 end
 
+function sin_wo_cnt end
+@overlay SinTable sin_wo_cnt(x) = @nonoverlay cos(x);
+
+let pass! = CosCounter(0)
+    pass!(42) do a
+        sin_wo_cnt(a) * cos(a)
+    end
+    @test pass!.ncos == 1
+end
+
 end
