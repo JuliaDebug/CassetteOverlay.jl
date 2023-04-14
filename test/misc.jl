@@ -6,11 +6,20 @@ using CassetteOverlay, Test
 pass = @overlaypass MiscTable
 
 # Issue #9 – Core.Compiler.return_type needs a special casing
-@test pass(sin, 1) do f, args...
+# TODO support invalidation mechanism for overlayed method
+function strange_sin end
+
+@overlay MiscTable strange_sin(x) = sin(x);
+@test pass(strange_sin, 1) do f, args...
     tt = Base.signature_type(f, Any[Core.Typeof(a) for a = args])
-    T = Core.Compiler.return_type(tt)
-    T[]
-end == Float64[]
+    return Core.Compiler.return_type(tt)
+end == Float64
+
+@overlay MiscTable strange_sin(x) = 0;
+@test pass(strange_sin, 1) do f, args...
+    tt = Base.signature_type(f, Any[Core.Typeof(a) for a = args])
+    return Core.Compiler.return_type(tt)
+end == Int
 
 # Issue #14 - :foreigncall first argument mapping
 using NaNMath
