@@ -215,9 +215,9 @@ macro overlaypass(args...)
             @nospecialize f args
             return f(args...)
         end
-        @inline function (::$PassName)(f::typeof(Core.Compiler.return_type), args...)
+        @inline function (self::$PassName)(f::typeof(Core.Compiler.return_type), args...)
             @nospecialize args
-            return f(args...)
+            return Core.Compiler.return_type(self, args...)
         end
         @inline function (self::$PassName)(::typeof(Core._apply_iterate), iterate, f, args...)
             @nospecialize args
