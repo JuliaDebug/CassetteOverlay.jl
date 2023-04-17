@@ -6,7 +6,6 @@ using CassetteOverlay, Test
 pass = @overlaypass MiscTable
 
 # Issue #9 – Core.Compiler.return_type needs a special casing
-# TODO support invalidation mechanism for overlayed method
 function strange_sin end
 
 @overlay MiscTable strange_sin(x) = sin(x);
