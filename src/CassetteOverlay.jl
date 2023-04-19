@@ -215,9 +215,12 @@ macro overlaypass(args...)
             @nospecialize f args
             return f(args...)
         end
-        @inline function (self::$PassName)(f::typeof(Core.Compiler.return_type), args...)
-            @nospecialize args
-            return Core.Compiler.return_type(self, args...)
+        @inline function (self::$PassName)(::typeof(Core.Compiler.return_type), tt::DataType)
+            return Core.Compiler.return_type(self, tt)
+        end
+        @inline function (self::$PassName)(::typeof(Core.Compiler.return_type), f, tt::DataType)
+            newtt = Base.signature_type(f, tt)
+            return Core.Compiler.return_type(self, newtt)
         end
         @inline function (self::$PassName)(::typeof(Core._apply_iterate), iterate, f, args...)
             @nospecialize args

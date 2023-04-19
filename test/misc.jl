@@ -13,11 +13,19 @@ function strange_sin end
     tt = Base.signature_type(f, Any[Core.Typeof(a) for a = args])
     return Core.Compiler.return_type(tt)
 end == Float64
+@test pass(1) do args...
+    tt = Tuple{Any[Core.Typeof(a) for a = args]...}
+    return Core.Compiler.return_type(strange_sin, tt)
+end == Float64
 
 @overlay MiscTable strange_sin(x) = 0;
 @test pass(strange_sin, 1) do f, args...
     tt = Base.signature_type(f, Any[Core.Typeof(a) for a = args])
     return Core.Compiler.return_type(tt)
+end == Int
+@test pass(1) do args...
+    tt = Tuple{Any[Core.Typeof(a) for a = args]...}
+    return Core.Compiler.return_type(strange_sin, tt)
 end == Int
 
 # Issue #14 - :foreigncall first argument mapping
