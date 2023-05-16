@@ -40,7 +40,8 @@ const has_generated_worlds = let
     v
 end
 
-function overlay_generator(passtype, fargtypes, world=Base.get_world_counter())
+function overlay_generator(world::UInt, source::LineNumberNode, passtype, fargtypes)
+    @nospecialize passtype fargtypes
     tt = to_tuple_type(fargtypes)
     match = _which(tt; method_table=method_table(passtype), raise=false, world)
     match === nothing && return nothing
@@ -172,7 +173,8 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospe
 end
 
 function pass_generator(world::UInt, source::LineNumberNode, pass, fargs)
-    src = overlay_generator(pass, fargs, world)
+    @nospecialize pass fargs
+    src = overlay_generator(world, source, pass, fargs)
     if src === nothing
         # code generation failed – make it raise a proper MethodError
         stub = Core.GeneratedFunctionStub(identity, Core.svec(:pass, :fargs), Core.svec())
@@ -238,7 +240,9 @@ macro overlaypass(args...)
     else
         quote
             @generated function (pass::$PassName)($(esc(:fargs))...)
-                src = $overlay_generator(pass, fargs)
+                world = Base.get_world_counter()
+                source = LineNumberNode(@__LINE__, @__FILE__)
+                src = $overlay_generator(world, source, pass, fargs)
                 if src === nothing
                     # a code generation failed – make it raise a proper MethodError
                     return :(first(fargs)(Base.tail(fargs)...))
