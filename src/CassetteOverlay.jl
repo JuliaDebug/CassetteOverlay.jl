@@ -1,6 +1,6 @@
 module CassetteOverlay
 
-export @MethodTable, @overlay, @overlaypass, nonoverlay, @nonoverlay,
+export @MethodTable, @overlay, @overlaypass, getpass, nonoverlay, @nonoverlay,
        AbstractBindingOverlay, Overlay
 
 using Core.IR
@@ -11,11 +11,13 @@ using Base.Experimental: @MethodTable, @overlay
 
 abstract type OverlayPass end
 function method_table end
+function getpass end
 function nonoverlay end
 
 @nospecialize
 cassette_overlay_error() = error("CassetteOverlay is available via `@overlaypass` macro")
 method_table(::Type{<:OverlayPass}) = cassette_overlay_error()
+getpass(args...; kwargs...) = cassette_overlay_error()
 nonoverlay(args...; kwargs...) = cassette_overlay_error()
 @specialize
 
@@ -209,10 +211,11 @@ macro overlaypass(args...)
         mthd_tbl = nothing
     end
 
-    blk = quote
-        $decl_pass
-        $mthd_tbl
+    blk = Expr(:block)
+    push!(blk.args, decl_pass, mthd_tbl)
 
+    # primitives
+    primitives = quote
         @inline function (::$PassName)(f::Union{Core.Builtin,Core.IntrinsicFunction}, args...)
             @nospecialize f args
             return f(args...)
@@ -228,9 +231,12 @@ macro overlaypass(args...)
             @nospecialize args
             return Core.Compiler._apply_iterate(iterate, self, (f,), args...)
         end
+        @inline (self::$PassName)(::typeof(getpass)) = self
     end
+    append!(blk.args, primitives.args)
 
-    blk2 = @static if has_generated_worlds
+    # the main code transformation pass
+    mainpass = @static if has_generated_worlds
         quote
             function (pass::$PassName)(fargs...)
                 $(Expr(:meta, :generated_only))
@@ -251,9 +257,10 @@ macro overlaypass(args...)
             end
         end
     end
-    append!(blk.args, blk2.args)
+    append!(blk.args, mainpass.args)
 
-    blk3 = quote
+    # nonoverlay primitives
+    nonoverlaypass = quote
         @nospecialize
         @inline function (pass::$PassName)(::$nonoverlaytype, f, args...; kwargs...)
             return f(args...; kwargs...)
@@ -275,7 +282,7 @@ macro overlaypass(args...)
 
         return $ret
     end
-    append!(blk.args, blk3.args)
+    append!(blk.args, nonoverlaypass.args)
 
     return Expr(:toplevel, blk.args...)
 end

@@ -1,32 +1,23 @@
 module abstract
 
 using CassetteOverlay, Test
+import Base: cos
+
 @MethodTable SinTable
-mutable struct CosCounter <: CassetteOverlay.AbstractBindingOverlay{@__MODULE__, :SinTable}
+mutable struct CosCounter <: AbstractBindingOverlay{@__MODULE__, :SinTable}
     ncos::Int
 end
 
-function (c::CosCounter)(::typeof(cos), args...)
-    c.ncos += 1
-    return cos(args...)
+@overlay SinTable function Base.cos(x::Union{Float32,Float64})
+    getpass().ncos += 1
+    return @nonoverlay cos(x)
 end
 
-@overlay SinTable sin(x::Union{Float32,Float64}) = cos(x);
-
 let pass! = CosCounter(0)
-    pass!(42) do a
-        sin(a) * cos(a)
-    end
-    @test pass!.ncos == 2
-end
-
-function sin_wo_cnt end
-@overlay SinTable sin_wo_cnt(x) = @nonoverlay cos(x);
-
-let pass! = CosCounter(0)
-    pass!(42) do a
-        sin_wo_cnt(a) * cos(a)
-    end
+    x = 42
+    @test pass!() do
+        sin(x) * cos(x)
+    end == sin(x) * cos(x)
     @test pass!.ncos == 1
 end
 
