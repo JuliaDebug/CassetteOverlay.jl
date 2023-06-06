@@ -211,8 +211,8 @@ macro overlaypass(args...)
         mthd_tbl = nothing
     end
 
-    blk = Expr(:block)
-    push!(blk.args, decl_pass, mthd_tbl)
+    topblk = Expr(:toplevel)
+    push!(topblk.args, decl_pass, mthd_tbl)
 
     # primitives
     primitives = quote
@@ -233,7 +233,7 @@ macro overlaypass(args...)
         end
         @inline (self::$PassName)(::typeof(getpass)) = self
     end
-    append!(blk.args, primitives.args)
+    append!(topblk.args, primitives.args)
 
     # the main code transformation pass
     mainpass = @static if has_generated_worlds
@@ -257,7 +257,7 @@ macro overlaypass(args...)
             end
         end
     end
-    append!(blk.args, mainpass.args)
+    append!(topblk.args, mainpass.args)
 
     # nonoverlay primitives
     nonoverlaypass = quote
@@ -282,9 +282,9 @@ macro overlaypass(args...)
 
         return $ret
     end
-    append!(blk.args, nonoverlaypass.args)
+    append!(topblk.args, nonoverlaypass.args)
 
-    return Expr(:toplevel, blk.args...)
+    return topblk
 end
 
 abstract type AbstractBindingOverlay{M, S} <: OverlayPass; end
