@@ -39,4 +39,12 @@ end
 
 @test isa(pass(pointer, Int[1]), Ptr{Int})
 
+# https://github.com/JuliaLang/julia/issues/50452
+@eval sparam_isdefined() = $(Expr(:isdefined, Expr(:static_parameter, 1)))
+@eval function sparam_isdefined(a::T) where T
+    return $(Expr(:isdefined, Expr(:static_parameter, 1)))
+end
+@test !pass(sparam_isdefined)
+@test pass(sparam_isdefined, 42)
+
 end
