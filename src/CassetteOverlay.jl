@@ -155,6 +155,11 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospe
             return Expr(:enter, map_ssa_value(x.args[1]::Int))
         elseif head === :static_parameter
             return sparams[x.args[1]::Int]
+        elseif head === :isdefined
+            arg1 = x.args[1]
+            if Meta.isexpr(arg1, :static_parameter)
+                return 1 ≤ arg1.args[1]::Int ≤ length(sparams)
+            end
         end
         return Expr(x.head, map(transform, x.args)...)
     elseif isa(x, GotoNode)
