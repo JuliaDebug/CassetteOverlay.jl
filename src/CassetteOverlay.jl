@@ -174,6 +174,12 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospe
         return NewvarNode(map_slot_number(x.slot.id))
     elseif isa(x, SSAValue)
         return SSAValue(map_ssa_value(x.id))
+    elseif isdefined(Core, :EnterNode) && isa(x, Core.EnterNode)
+        if isdefined(x, :scope)
+            return Core.EnterNode(map_ssa_value(x.catch_dest), transform(x.scope))
+        else
+            return Core.EnterNode(map_ssa_value(x.catch_dest))
+        end
     else
         return x
     end
