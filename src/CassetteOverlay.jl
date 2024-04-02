@@ -110,11 +110,10 @@ function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
         ssaid += 1
     end
     prepend!(code, precode)
-    if VERSION < v"1.12.0-DEV.173"
+    @static if VERSION < v"1.12.0-DEV.173"
         prepend!(src.codelocs, [0 for i = 1:ssaid])
     else
         di = Core.Compiler.DebugInfoStream(mi, src.debuginfo, length(code))
-        prepend!(di.codelocs, fill(Int32(0), 3ssaid))
         src.debuginfo = Core.DebugInfo(di, length(code))
     end
     prepend!(src.ssaflags, [0x00 for i = 1:ssaid])
