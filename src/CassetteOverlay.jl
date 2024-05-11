@@ -118,6 +118,10 @@ function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
     end
     prepend!(src.ssaflags, [0x00 for i = 1:ssaid])
     src.ssavaluetypes += ssaid
+    if isdefined(Base, :__has_internal_change) && Base.__has_internal_change(v"1.12-alpha", :codeinfonargs)
+        src.nargs = 2
+        src.isva = true
+    end
 
     function map_slot_number(slot::Int)
         @assert slot ≥ 1
