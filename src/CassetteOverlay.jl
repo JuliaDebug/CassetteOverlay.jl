@@ -4,7 +4,7 @@ export @MethodTable, @overlay, @overlaypass, getpass, nonoverlay, @nonoverlay,
        AbstractBindingOverlay, Overlay
 
 using Core.IR
-using Core: MethodInstance, SimpleVector, MethodTable
+using Core: SimpleVector, MethodTable
 using Core.Compiler: specialize_method, retrieve_code_info
 using Base: destructure_callex, to_tuple_type, get_world_counter
 using Base.Experimental: @MethodTable, @overlay
