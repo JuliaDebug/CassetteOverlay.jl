@@ -67,4 +67,19 @@ let pass = @overlaypass Issue8.Issue8Table
     @test pass(identity, 42) == nothing
 end
 
-end
+# JuliaDebug/CassetteOverlay#39 & JuliaDebug/CassetteOverlay#45:
+# use the fallback implementation for `!isdispatchtuple` dynamic dispatches
+issue39() = UnionAll(TypeVar(:T,Integer), Array{TypeVar(:T,Integer)})
+@test pass() do
+    issue39()
+end isa UnionAll
+
+issue45(x::UnionAll) = issue45(x.body)
+issue45(x) = x
+@test pass(issue45, NamedTuple) == issue45(NamedTuple)
+
+pr46_regression(x::UnionAll) = pr46_regression(x.body)
+pr46_regression(x) = myidentity(x)
+@test_broken pass(fallback_regression, NamedTuple) == 42
+
+end # module simple

@@ -48,11 +48,8 @@ function overlay_generator(world::UInt, source::LineNumberNode, passtype, fargty
     match = _which(tt; method_table=method_table(passtype), raise=false, world)
     match === nothing && return nothing
     mi = specialize_method(match)::MethodInstance
-    src = @static if has_generated_worlds
-        copy(retrieve_code_info(mi, world)::CodeInfo)
-    else
-        copy(retrieve_code_info(mi)::CodeInfo)
-    end
+    src = (@static has_generated_worlds ?
+        retrieve_code_info(mi, world) : retrieve_code_info(mi))::CodeInfo
     overlay_transform!(src, mi, length(fargtypes))
     return src
 end
@@ -259,21 +256,27 @@ macro overlaypass(args...)
     mainpass = @static if has_generated_worlds
         quote
             function (pass::$PassName)(fargs...)
-                $(Expr(:meta, :generated_only))
                 $(Expr(:meta, :generated, pass_generator))
+                # also include a fallback implementation that will be used when this method
+                # is dynamically dispatched with `!isdispatchtuple` signatures.
+                return first(fargs)(Base.tail(fargs)...)
             end
         end
     else
         quote
-            @generated function (pass::$PassName)($(esc(:fargs))...)
-                world = Base.get_world_counter()
-                source = LineNumberNode(@__LINE__, @__FILE__)
-                src = $overlay_generator(world, source, pass, fargs)
-                if src === nothing
-                    # a code generation failed – make it raise a proper MethodError
-                    return :(first(fargs)(Base.tail(fargs)...))
+            function (pass::$PassName)($(esc(:fargs))...)
+                if @generated
+                    world = Base.get_world_counter()
+                    source = LineNumberNode(@__LINE__, @__FILE__)
+                    src = $overlay_generator(world, source, pass, fargs)
+                    if src === nothing
+                        # a code generation failed – make it raise a proper MethodError
+                        return :(first(fargs)(Base.tail(fargs)...))
+                    end
+                    return src
+                else
+                    return first(fargs)(Base.tail(fargs)...)
                 end
-                return src
             end
         end
     end
