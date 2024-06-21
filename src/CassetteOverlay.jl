@@ -22,12 +22,8 @@ nonoverlay(args...; kwargs...) = cassette_overlay_error()
 @specialize
 
 macro nonoverlay(ex)
-    @static if VERSION ≥ v"1.10.0-DEV.68"
-        topmod = Core.Compiler._topmod(__module__)
-        f, args, kwargs = Base.destructure_callex(topmod, ex)
-    else
-        f, args, kwargs = Base.destructure_callex(ex)
-    end
+    topmod = Core.Compiler._topmod(__module__)
+    f, args, kwargs = Base.destructure_callex(topmod, ex)
     out = Expr(:call, GlobalRef(@__MODULE__, :nonoverlay))
     isempty(kwargs) || push!(out.args, Expr(:parameters, kwargs...))
     push!(out.args, f)
@@ -35,45 +31,16 @@ macro nonoverlay(ex)
     return esc(out)
 end
 
-# JuliaLang/julia#48611: world age is exposed to generated functions, and should be used
-const has_generated_worlds = let
-    v = VERSION ≥ v"1.10.0-DEV.873"
-    v && @assert fieldcount(Core.GeneratedFunctionStub) == 3
-    v
-end
-
 function overlay_generator(world::UInt, source::LineNumberNode, passtype, fargtypes)
     @nospecialize passtype fargtypes
     tt = to_tuple_type(fargtypes)
-    match = _which(tt; method_table=method_table(passtype), raise=false, world)
+    match = Base._which(tt; method_table=method_table(passtype), raise=false, world)
     match === nothing && return nothing
     mi = specialize_method(match)::MethodInstance
-    src = (@static has_generated_worlds ?
-        retrieve_code_info(mi, world) : retrieve_code_info(mi))::CodeInfo
+    src = retrieve_code_info(mi, world)
+    src === nothing && return nothing # TODO raise a special exception here?
     overlay_transform!(src, mi, length(fargtypes))
     return src
-end
-
-@static if VERSION ≥ v"1.10.0-DEV.81"
-    using Base: _which
-else
-    function _which(@nospecialize(tt::Type);
-        method_table::Union{Nothing,MethodTable}=nothing,
-        world::UInt=get_world_counter(),
-        raise::Bool=false)
-        world == typemax(UInt) && error("code reflection cannot be used from generated functions")
-        if method_table === nothing
-            table = Core.Compiler.InternalMethodTable(world)
-        else
-            table = Core.Compiler.OverlayMethodTable(world, method_table)
-        end
-        match, = Core.Compiler.findsup(tt, table)
-        if match === nothing
-            raise && error("no unique matching method found for the specified argument types")
-            return nothing
-        end
-        return match
-    end
 end
 
 function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
@@ -252,31 +219,12 @@ macro overlaypass(args...)
     append!(topblk.args, primitives.args)
 
     # the main code transformation pass
-    mainpass = @static if has_generated_worlds
-        quote
-            function (pass::$PassName)(fargs...)
-                $(Expr(:meta, :generated, pass_generator))
-                # also include a fallback implementation that will be used when this method
-                # is dynamically dispatched with `!isdispatchtuple` signatures.
-                return first(fargs)(Base.tail(fargs)...)
-            end
-        end
-    else
-        quote
-            function (pass::$PassName)($(esc(:fargs))...)
-                if @generated
-                    world = Base.get_world_counter()
-                    source = LineNumberNode(@__LINE__, @__FILE__)
-                    src = $overlay_generator(world, source, pass, fargs)
-                    if src === nothing
-                        # a code generation failed – make it raise a proper MethodError
-                        return :(first(fargs)(Base.tail(fargs)...))
-                    end
-                    return src
-                else
-                    return first(fargs)(Base.tail(fargs)...)
-                end
-            end
+    mainpass = quote
+        function (pass::$PassName)(fargs...)
+            $(Expr(:meta, :generated, pass_generator))
+            # also include a fallback implementation that will be used when this method
+            # is dynamically dispatched with `!isdispatchtuple` signatures.
+            return first(fargs)(Base.tail(fargs)...)
         end
     end
     append!(topblk.args, mainpass.args)
@@ -289,17 +237,9 @@ macro overlaypass(args...)
         end
         @specialize
 
-        @static if isdefined(Core, :kwcall)
-            @inline function (pass::$PassName)(::typeof(Core.kwcall), kwargs::Any, ::$nonoverlaytype, fargs...)
-                @nospecialize kwargs fargs
-                return Core.kwcall(kwargs, fargs...)
-            end
-        else
-            @inline function (pass::$PassName)(::typeof(Core.kwfunc(nonoverlay)), kwargs::Any, ::$nonoverlaytype, f, args...)
-                @nospecialize kwargs fargs
-                kwf = Core.kwfunc(f)
-                return kwf(kwargs, f, args...)
-            end
+        @inline function (pass::$PassName)(::typeof(Core.kwcall), kwargs::Any, ::$nonoverlaytype, fargs...)
+            @nospecialize kwargs fargs
+            return Core.kwcall(kwargs, fargs...)
         end
 
         return $ret
