@@ -5,8 +5,6 @@ export @MethodTable, @overlay, @overlaypass, getpass, nonoverlay, @nonoverlay,
 
 using Core.IR
 using Core: SimpleVector, MethodTable
-using Core.Compiler: specialize_method, retrieve_code_info
-using Base: destructure_callex, to_tuple_type, get_world_counter
 using Base.Experimental: @MethodTable, @overlay
 
 abstract type OverlayPass end
@@ -33,11 +31,11 @@ end
 
 function overlay_generator(world::UInt, source::LineNumberNode, passtype, fargtypes)
     @nospecialize passtype fargtypes
-    tt = to_tuple_type(fargtypes)
+    tt = Base.to_tuple_type(fargtypes)
     match = Base._which(tt; method_table=method_table(passtype), raise=false, world)
     match === nothing && return nothing
-    mi = specialize_method(match)::MethodInstance
-    src = retrieve_code_info(mi, world)
+    mi = Core.Compiler.specialize_method(match)::MethodInstance
+    src = Core.Compiler.retrieve_code_info(mi, world)
     src === nothing && return nothing # TODO raise a special exception here?
     overlay_transform!(src, mi, length(fargtypes))
     return src
