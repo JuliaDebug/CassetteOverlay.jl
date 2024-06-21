@@ -29,18 +29,6 @@ macro nonoverlay(ex)
     return esc(out)
 end
 
-function overlay_generator(world::UInt, source::LineNumberNode, passtype, fargtypes)
-    @nospecialize passtype fargtypes
-    tt = Base.to_tuple_type(fargtypes)
-    match = Base._which(tt; method_table=method_table(passtype), raise=false, world)
-    match === nothing && return nothing
-    mi = Core.Compiler.specialize_method(match)::MethodInstance
-    src = Core.Compiler.retrieve_code_info(mi, world)
-    src === nothing && return nothing # TODO raise a special exception here?
-    overlay_transform!(src, mi, length(fargtypes))
-    return src
-end
-
 function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
     method = mi.def::Method
     mnargs = Int(method.nargs)
@@ -155,14 +143,15 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospe
     return x
 end
 
-function pass_generator(world::UInt, source::LineNumberNode, pass, fargs)
-    @nospecialize pass fargs
-    src = overlay_generator(world, source, pass, fargs)
-    if src === nothing
-        # code generation failed – make it raise a proper MethodError
-        stub = Core.GeneratedFunctionStub(identity, Core.svec(:pass, :fargs), Core.svec())
-        return stub(world, source, :(return first(fargs)(Base.tail(fargs)...)))
-    end
+function overlay_generator(world::UInt, source::LineNumberNode, passtype, fargtypes)
+    @nospecialize passtype fargtypes
+    tt = Base.to_tuple_type(fargtypes)
+    match = Base._which(tt; method_table=method_table(passtype), raise=false, world)
+    match === nothing && return nothing # method match failed – the fallback implementation will raise a proper MethodError
+    mi = Core.Compiler.specialize_method(match)
+    src = Core.Compiler.retrieve_code_info(mi, world)
+    src === nothing && return nothing # code generation failed - the fallback implementation will re-raise it
+    overlay_transform!(src, mi, length(fargtypes))
     return src
 end
 
@@ -219,7 +208,7 @@ macro overlaypass(args...)
     # the main code transformation pass
     mainpass = quote
         function (pass::$PassName)(fargs...)
-            $(Expr(:meta, :generated, pass_generator))
+            $(Expr(:meta, :generated, overlay_generator))
             # also include a fallback implementation that will be used when this method
             # is dynamically dispatched with `!isdispatchtuple` signatures.
             return first(fargs)(Base.tail(fargs)...)

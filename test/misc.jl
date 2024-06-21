@@ -37,6 +37,20 @@ using NaNMath
     sin("1")
 end
 
+# re-raise code generation error
+@generated function codegen_error(a)
+    if a <: Number
+        return :(sin(a))
+    end
+    error("Bad argument type")
+end
+@test pass(42) do a
+    codegen_error(a)
+end == sin(42)
+@test_throws "Bad argument type" pass("42") do a
+    codegen_error(a)
+end
+
 @test isa(pass(pointer, Int[1]), Ptr{Int})
 
 # https://github.com/JuliaLang/julia/issues/50452
