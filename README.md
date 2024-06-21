@@ -3,11 +3,11 @@
 ```julia
 julia> using CassetteOverlay, Test
 
-julia> @MethodTable SinTable;
+julia> @MethodTable sintable;
 
-julia> @overlay SinTable sin(x::Union{Float32,Float64}) = cos(x);
+julia> @overlay sintable sin(x::Union{Float32,Float64}) = cos(x);
 
-julia> pass = @overlaypass SinTable;
+julia> pass = @overlaypass sintable;
 
 # run with the overlayed method
 julia> @test pass(42) do a
@@ -16,7 +16,7 @@ julia> @test pass(42) do a
 Test Passed
 
 # invalidate the overlayed method and make it return `cos∘sin`
-julia> @overlay SinTable sin(x::Union{Float32,Float64}) = cos(x) * @nonoverlay sin(x);
+julia> @overlay sintable sin(x::Union{Float32,Float64}) = cos(x) * @nonoverlay sin(x);
 
 julia> @test pass(42) do a
            sin(a) * cos(a)
