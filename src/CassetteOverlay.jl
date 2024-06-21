@@ -8,13 +8,13 @@ using Core: SimpleVector, MethodTable
 using Base.Experimental: @MethodTable, @overlay
 
 abstract type OverlayPass end
-function method_table end
+function methodtable end
 function getpass end
 function nonoverlay end
 
 @nospecialize
 cassette_overlay_error() = error("CassetteOverlay is available via `@overlaypass` macro")
-method_table(::Type{<:OverlayPass}) = cassette_overlay_error()
+methodtable(::Type{<:OverlayPass}) = cassette_overlay_error()
 getpass(args...; kwargs...) = cassette_overlay_error()
 nonoverlay(args...; kwargs...) = cassette_overlay_error()
 @specialize
@@ -146,7 +146,7 @@ end
 function overlay_generator(world::UInt, source::LineNumberNode, passtype, fargtypes)
     @nospecialize passtype fargtypes
     tt = Base.to_tuple_type(fargtypes)
-    match = Base._which(tt; method_table=method_table(passtype), raise=false, world)
+    match = Base._which(tt; method_table=methodtable(passtype), raise=false, world)
     match === nothing && return nothing # method match failed – the fallback implementation will raise a proper MethodError
     mi = Core.Compiler.specialize_method(match)
     src = Core.Compiler.retrieve_code_info(mi, world)
@@ -176,7 +176,7 @@ macro overlaypass(args...)
     nonoverlaytype = typeof(CassetteOverlay.nonoverlay)
 
     if method_table !== :nothing
-        mthd_tbl = :($CassetteOverlay.method_table(::Type{$PassName}) = $(esc(method_table)))
+        mthd_tbl = :($CassetteOverlay.methodtable(::Type{$PassName}) = $(esc(method_table)))
     else
         mthd_tbl = nothing
     end
@@ -237,7 +237,7 @@ macro overlaypass(args...)
 end
 
 abstract type AbstractBindingOverlay{M, S} <: OverlayPass; end
-function method_table(::Type{<:AbstractBindingOverlay{M, S}}) where {M, S}
+function methodtable(::Type{<:AbstractBindingOverlay{M, S}}) where {M, S}
     if M === nothing
         return nothing
     end
