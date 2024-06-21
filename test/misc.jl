@@ -2,13 +2,13 @@ module misc
 
 using CassetteOverlay, Test
 
-@MethodTable MiscTable
-pass = @overlaypass MiscTable
+@MethodTable misc_table
+pass = @overlaypass misc_table
 
 # Issue #9 – Core.Compiler.return_type needs a special casing
 function strange_sin end
 
-@overlay MiscTable strange_sin(x) = sin(x);
+@overlay misc_table strange_sin(x) = sin(x);
 @test pass(strange_sin, 1) do f, args...
     tt = Base.signature_type(f, Any[Core.Typeof(a) for a = args])
     return Core.Compiler.return_type(tt)
@@ -18,7 +18,7 @@ end == Float64
     return Core.Compiler.return_type(strange_sin, tt)
 end == Float64
 
-@overlay MiscTable strange_sin(x) = 0;
+@overlay misc_table strange_sin(x) = 0;
 @test pass(strange_sin, 1) do f, args...
     tt = Base.signature_type(f, Any[Core.Typeof(a) for a = args])
     return Core.Compiler.return_type(tt)
@@ -55,5 +55,11 @@ if isdefined(Base, :ScopedValues)
         end
     end == 2
 end
+
+# https://github.com/JuliaDebug/CassetteOverlay.jl/issues/41
+# `ccall` with a function pointer
+const jl_gensym_ptr = cglobal(:jl_gensym)
+issue41() = @ccall $jl_gensym_ptr()::Ref{Symbol}
+@test pass(issue41) isa Symbol
 
 end

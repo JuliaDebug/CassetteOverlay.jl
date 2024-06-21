@@ -143,22 +143,20 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospe
     if isa(x, Expr)
         head = x.head
         if head === :call
-            ex = Expr(:call, SlotNumber(1))
-            for i = 1:length(x.args)
-                push!(ex.args, transform(x.args[i]))
-            end
-            return ex
+            return Expr(:call, SlotNumber(1), map(transform, x.args[1:end])...)
         elseif head === :foreigncall
-            # first argument of :foreigncall is a magic tuple and should be preserved
+            arg1 = x.args[1]
+            if Meta.isexpr(arg1, :call)
+                # first argument of :foreigncall may be a magic tuple call, and it should be preserved
+                arg1 = Expr(:call, map(transform, arg1.args)...)
+            else
+                arg1 = transform(x.args[1])
+            end
             arg2 = @ccall jl_instantiate_type_in_env(x.args[2]::Any, spsig::Any, sparams::Ptr{Any})::Any
             arg3 = Core.svec(Any[
                     @ccall jl_instantiate_type_in_env(argt::Any, spsig::Any, sparams::Ptr{Any})::Any
                     for argt in x.args[3]::SimpleVector ]...)
-            ex = Expr(:foreigncall, x.args[1], arg2, arg3)
-            for i = 4:length(x.args)
-                push!(ex.args, transform(x.args[i]))
-            end
-            return ex
+            return Expr(:foreigncall, arg1, arg2, arg3, map(transform, x.args[4:end])...)
         elseif head === :enter
             return Expr(:enter, map_ssa_value(x.args[1]::Int))
         elseif head === :static_parameter
@@ -169,11 +167,7 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospe
                 return 1 ≤ arg1.args[1]::Int ≤ length(sparams)
             end
         end
-        ex = Expr(head)
-        for i = 1:length(x.args)
-            push!(ex.args, transform(x.args[i]))
-        end
-        return ex
+        return Expr(head, map(transform, x.args)...)
     elseif isa(x, GotoNode)
         return GotoNode(map_ssa_value(x.label))
     elseif isa(x, GotoIfNot)
