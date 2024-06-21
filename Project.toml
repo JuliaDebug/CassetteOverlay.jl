@@ -1,7 +1,7 @@
 name = "CassetteOverlay"
 uuid = "d78b62d4-37fa-4a6f-acd8-2f19986eb9ee"
 authors = ["JuliaHub, Inc. and other contributors"]
-version = "0.1.10"
+version = "0.1.11"
 
 [compat]
 julia = "1.8"
