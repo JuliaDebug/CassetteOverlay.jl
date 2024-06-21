@@ -4,7 +4,7 @@ authors = ["JuliaHub, Inc. and other contributors"]
 version = "0.1.11"
 
 [compat]
-julia = "1.8"
+julia = "1.9"
 
 [extras]
 NaNMath = "77ba4419-2d1f-58cd-9bb1-8ffee604a2e3"
