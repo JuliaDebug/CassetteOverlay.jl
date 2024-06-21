@@ -89,12 +89,13 @@ function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
     local ssaid = 0
     for i = 1:mnargs
         if method.isva && i == mnargs
-            args = map(i:nargs) do j
+            tuplecall = Expr(:call, tuple)
+            for j = i:nargs
                 push!(precode, Expr(:call, getfield, fargsslot, j))
                 ssaid += 1
-                return SSAValue(ssaid)
+                push!(tuplecall.args, SSAValue(ssaid))
             end
-            push!(precode, Expr(:call, tuple, args...))
+            push!(precode, tuplecall)
         else
             push!(precode, Expr(:call, getfield, fargsslot, i))
         end
@@ -109,7 +110,7 @@ function overlay_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int)
     end
     prepend!(src.ssaflags, [0x00 for i = 1:ssaid])
     src.ssavaluetypes += ssaid
-    if isdefined(Base, :__has_internal_change) && Base.__has_internal_change(v"1.12-alpha", :codeinfonargs)
+    if @static isdefined(Base, :__has_internal_change) && Base.__has_internal_change(v"1.12-alpha", :codeinfonargs)
         src.nargs = 2
         src.isva = true
     end
@@ -139,18 +140,25 @@ end
 
 function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospecialize(spsig), sparams::SimpleVector)
     transform(@nospecialize x′) = transform_stmt(x′, map_slot_number, map_ssa_value, spsig, sparams)
-
     if isa(x, Expr)
         head = x.head
         if head === :call
-            return Expr(:call, SlotNumber(1), map(transform, x.args)...)
+            ex = Expr(:call, SlotNumber(1))
+            for i = 1:length(x.args)
+                push!(ex.args, transform(x.args[i]))
+            end
+            return ex
         elseif head === :foreigncall
             # first argument of :foreigncall is a magic tuple and should be preserved
-            arg2 = ccall(:jl_instantiate_type_in_env, Any, (Any, Any, Ptr{Any}), x.args[2], spsig, sparams)
+            arg2 = @ccall jl_instantiate_type_in_env(x.args[2]::Any, spsig::Any, sparams::Ptr{Any})::Any
             arg3 = Core.svec(Any[
-                    ccall(:jl_instantiate_type_in_env, Any, (Any, Any, Ptr{Any}), argt, spsig, sparams)
+                    @ccall jl_instantiate_type_in_env(argt::Any, spsig::Any, sparams::Ptr{Any})::Any
                     for argt in x.args[3]::SimpleVector ]...)
-            return Expr(:foreigncall, x.args[1], arg2, arg3, map(transform, x.args[4:end])...)
+            ex = Expr(:foreigncall, x.args[1], arg2, arg3)
+            for i = 4:length(x.args)
+                push!(ex.args, transform(x.args[i]))
+            end
+            return ex
         elseif head === :enter
             return Expr(:enter, map_ssa_value(x.args[1]::Int))
         elseif head === :static_parameter
@@ -161,7 +169,11 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospe
                 return 1 ≤ arg1.args[1]::Int ≤ length(sparams)
             end
         end
-        return Expr(x.head, map(transform, x.args)...)
+        ex = Expr(head)
+        for i = 1:length(x.args)
+            push!(ex.args, transform(x.args[i]))
+        end
+        return ex
     elseif isa(x, GotoNode)
         return GotoNode(map_ssa_value(x.label))
     elseif isa(x, GotoIfNot)
@@ -174,15 +186,14 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospe
         return NewvarNode(map_slot_number(x.slot.id))
     elseif isa(x, SSAValue)
         return SSAValue(map_ssa_value(x.id))
-    elseif isdefined(Core, :EnterNode) && isa(x, Core.EnterNode)
+    elseif @static @isdefined(EnterNode) && isa(x, EnterNode)
         if isdefined(x, :scope)
-            return Core.EnterNode(map_ssa_value(x.catch_dest), transform(x.scope))
+            return EnterNode(map_ssa_value(x.catch_dest), transform(x.scope))
         else
-            return Core.EnterNode(map_ssa_value(x.catch_dest))
+            return EnterNode(map_ssa_value(x.catch_dest))
         end
-    else
-        return x
     end
+    return x
 end
 
 function pass_generator(world::UInt, source::LineNumberNode, pass, fargs)
