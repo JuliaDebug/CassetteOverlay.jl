@@ -3,7 +3,11 @@ uuid = "d78b62d4-37fa-4a6f-acd8-2f19986eb9ee"
 authors = ["JuliaHub, Inc. and other contributors"]
 version = "0.1.11"
 
+[deps]
+CassetteBase = "6dd3e646-b1c5-42c7-94be-00277fa12e22"
+
 [compat]
+CassetteBase = "0.1"
 julia = "1.10"
 
 [extras]

@@ -1,4 +1,4 @@
-name: CI
+name: CassetteOverlayCI
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
 
 jobs:
   test:
-    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }}
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} /w CassetteBase dev
     runs-on: ${{ matrix.os }}
     strategy:
       fail-fast: false # don't stop CI even when one of them fails
@@ -37,6 +37,31 @@ jobs:
             arch: x64
           - version: '1' # x64 macOS
             os: macos-latest
+            arch: x64
+    steps:
+      - uses: actions/checkout@v4
+      - uses: julia-actions/setup-julia@v2
+        with:
+          version: ${{ matrix.version }}
+          arch: ${{ matrix.arch }}
+      - name: dev CassetteBase # dev CassetteBase so that CassetteOverlay can be tested against a unreleased version
+        shell: julia --color=yes --project=. {0} # this is necessary for the next command to work on Windows
+        run: 'using Pkg; Pkg.develop(;path="./CassetteBase")'
+      - uses: julia-actions/julia-buildpkg@latest
+      - uses: julia-actions/julia-runtest@latest
+      - uses: julia-actions/julia-processcoverage@v1
+      - uses: codecov/codecov-action@v4
+        with:
+          file: ./lcov.info
+
+  release-test:
+    name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} /w CassetteBase released
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - version: '1' # current stable
+            os: ubuntu-latest
             arch: x64
     steps:
       - uses: actions/checkout@v4
