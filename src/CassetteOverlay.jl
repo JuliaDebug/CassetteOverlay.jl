@@ -30,7 +30,7 @@ macro nonoverlay(ex)
     return esc(out)
 end
 
-struct CassetteOverlayGenerator
+struct CassetteOverlayGenerator <: (@static isdefined(Core, :CachedGenerator) ? Core.CachedGenerator : Any)
     selfname::Symbol
     fargsname::Symbol
 end
