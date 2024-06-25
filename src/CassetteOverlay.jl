@@ -30,18 +30,21 @@ macro nonoverlay(ex)
     return esc(out)
 end
 
-function make_overlay_generator(selfname::Symbol, fargsname::Symbol)
-    function overlay_generator(world::UInt, source::LineNumberNode, passtype, fargtypes)
-        @nospecialize passtype fargtypes
-        try
-            return generate_overlay_src(world, source, passtype, fargtypes, selfname, fargsname)
-        catch err
-            # internal error happened - return an expression to raise the special exception
-            return generate_internalerr_ex(
-                err, #=bt=#catch_backtrace(), #=context=#:overlay_generator, world, source,
-                #=argnames=#Core.svec(selfname, fargsname), #=spnames=#Core.svec(),
-                #=metadata=#(; world, source, passtype, fargtypes))
-        end
+struct CassetteOverlayGenerator
+    selfname::Symbol
+    fargsname::Symbol
+end
+function (generator::CassetteOverlayGenerator)(world::UInt, source::LineNumberNode, passtype, fargtypes)
+    @nospecialize passtype fargtypes
+    (; selfname, fargsname) = generator
+    try
+        return generate_overlay_src(world, source, passtype, fargtypes, selfname, fargsname)
+    catch err
+        # internal error happened - return an expression to raise the special exception
+        return generate_internalerr_ex(
+        err, #=bt=#catch_backtrace(), #=context=#:CassetteOverlayGenerator, world, source,
+        #=argnames=#Core.svec(selfname, fargsname), #=spnames=#Core.svec(),
+        #=metadata=#(; world, source, passtype, fargtypes))
     end
 end
 
@@ -111,7 +114,7 @@ macro overlaypass(args...)
     # the main code transformation pass
     mainpass = quote
         function (pass::$PassName)(fargs...)
-            $(Expr(:meta, :generated, make_overlay_generator(:pass, :fargs)))
+            $(Expr(:meta, :generated, CassetteOverlayGenerator(:pass, :fargs)))
             # also include a fallback implementation that will be used when this method
             # is dynamically dispatched with `!isdispatchtuple` signatures.
             return first(fargs)(Base.tail(fargs)...)
