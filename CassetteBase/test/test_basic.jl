@@ -2,19 +2,23 @@ module test_basic
 
 using Test, CassetteBase
 
-function make_basic_generator(selfname::Symbol, fargsname::Symbol, raise::Bool)
-    function basic_generator(world::UInt, source::LineNumberNode, passtype, fargtypes)
-        @nospecialize passtype fargtypes
-        try
-            return generate_basic_src(world, source, passtype, fargtypes,
-                                      selfname, fargsname; raise)
-        catch err
-            # internal error happened - return an expression to raise the special exception
-            return generate_internalerr_ex(
-                err, #=bt=#catch_backtrace(), #=context=#:basic_generator, world, source,
-                #=argnames=#Core.svec(selfname, fargsname), #=spnames=#Core.svec(),
-                #=metadata=#(; world, source, passtype, fargtypes))
-        end
+struct BasicGenerator
+    selfname::Symbol
+    fargsname::Symbol
+    raise::Bool
+end
+function (generator::BasicGenerator)(world::UInt, source::LineNumberNode, passtype, fargtypes)
+    @nospecialize passtype fargtypes
+    (; selfname, fargsname, raise) = generator
+    try
+        return generate_basic_src(world, source, passtype, fargtypes,
+                                  selfname, fargsname; raise)
+    catch err
+        # internal error happened - return an expression to raise the special exception
+        return generate_internalerr_ex(
+            err, #=bt=#catch_backtrace(), #=context=#:BasicGenerator, world, source,
+            #=argnames=#Core.svec(selfname, fargsname), #=spnames=#Core.svec(),
+            #=metadata=#(; world, source, passtype, fargtypes))
     end
 end
 function generate_basic_src(world::UInt, source::LineNumberNode, passtype, fargtypes,
@@ -32,7 +36,7 @@ end
 
 struct BasicPass end
 @eval function (pass::BasicPass)(fargs...)
-    $(Expr(:meta, :generated, make_basic_generator(:pass, :fargs, #=raise=#false)))
+    $(Expr(:meta, :generated, BasicGenerator(:pass, :fargs, #=raise=#false)))
     return first(fargs)(Base.tail(fargs)...)
 end
 let pass = BasicPass()
@@ -42,7 +46,7 @@ end
 
 struct RaisePass end
 @eval function (pass::RaisePass)(fargs...)
-    $(Expr(:meta, :generated, make_basic_generator(:pass, :fargs, #=raise=#true)))
+    $(Expr(:meta, :generated, BasicGenerator(:pass, :fargs, #=raise=#true)))
     return first(fargs)(Base.tail(fargs)...)
 end
 let pass = RaisePass()
@@ -63,7 +67,7 @@ let pass = RaisePass()
         showerror(buf, err)
         String(take!(buf))
     end
-    @test occursin("Internal error happened in `basic_generator`:", msg)
+    @test occursin("Internal error happened in `BasicGenerator`:", msg)
     local err_expected
     try
         Base._which(Tuple{typeof(sin),String})
