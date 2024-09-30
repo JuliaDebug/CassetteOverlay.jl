@@ -62,9 +62,9 @@ end
 @test pass(sparam_isdefined, 42)
 
 if isdefined(Base, :ScopedValues)
-    const sval = Base.ScopedValue(1)
+    const sval = Base.ScopedValues.ScopedValue(1)
     @test pass() do
-        Base.with(sval => 2) do
+        Base.ScopedValues.with(sval => 2) do
             sval[]
         end
     end == 2
