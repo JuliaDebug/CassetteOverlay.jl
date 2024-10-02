@@ -42,9 +42,9 @@ function (generator::CassetteOverlayGenerator)(world::UInt, source::LineNumberNo
     catch err
         # internal error happened - return an expression to raise the special exception
         return generate_internalerr_ex(
-        err, #=bt=#catch_backtrace(), #=context=#:CassetteOverlayGenerator, world, source,
-        #=argnames=#Core.svec(selfname, fargsname), #=spnames=#Core.svec(),
-        #=metadata=#(; world, source, passtype, fargtypes))
+            err, #=bt=#catch_backtrace(), #=context=#:CassetteOverlayGenerator, world, source,
+            #=argnames=#Core.svec(selfname, fargsname), #=spnames=#Core.svec(),
+            #=metadata=#(; world, source, passtype, fargtypes))
     end
 end
 
