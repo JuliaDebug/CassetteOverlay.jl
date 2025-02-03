@@ -34,7 +34,7 @@ struct CassetteOverlayGenerator <: (@static isdefined(Core, :CachedGenerator) ? 
     selfname::Symbol
     fargsname::Symbol
 end
-function (generator::CassetteOverlayGenerator)(world::UInt, source::LineNumberNode, passtype, fargtypes)
+function (generator::CassetteOverlayGenerator)(world::UInt, source::SourceType, passtype, fargtypes)
     @nospecialize passtype fargtypes
     (; selfname, fargsname) = generator
     try
@@ -48,7 +48,7 @@ function (generator::CassetteOverlayGenerator)(world::UInt, source::LineNumberNo
     end
 end
 
-function generate_overlay_src(world::UInt, #=source=#::LineNumberNode, passtype, fargtypes,
+function generate_overlay_src(world::UInt, #=source=#::SourceType, passtype, fargtypes,
                               selfname::Symbol, fargsname::Symbol)
     @nospecialize passtype fargtypes
     tt = Base.to_tuple_type(fargtypes)
@@ -135,7 +135,12 @@ macro overlaypass(args...)
 
     push!(topblk.args, :(return $retval))
 
-    return topblk
+    # attach :latestworld if necessary (N.B. adding it the :toplevel block doesn't work)
+    @static if VERSION ≥ v"1.12.0-DEV.1662"
+        return Expr(:block, Expr(:(=), :pass, topblk), Expr(:latestworld), :pass)
+    else
+        return topblk
+    end
 end
 
 abstract type AbstractBindingOverlay{M, S} <: OverlayPass; end
@@ -143,15 +148,16 @@ function methodtable(::Type{<:AbstractBindingOverlay{M, S}}) where {M, S}
     if M === nothing
         return nothing
     end
-    @assert isconst(M, S)
-    return getglobal(M, S)::MethodTable
+    @assert @invokelatest isconst(M, S)
+    mt = @invokelatest getglobal(M, S)
+    return mt::MethodTable
 end
 @overlaypass AbstractBindingOverlay nothing
 
 struct Overlay{M, S} <: AbstractBindingOverlay{M, S}; end
 function Overlay(mt::MethodTable)
-    @assert isconst(mt.module, mt.name)
-    @assert getglobal(mt.module, mt.name) === mt
+    @assert @invokelatest isconst(mt.module, mt.name)
+    @assert mt === @invokelatest getglobal(mt.module, mt.name)
     return Overlay{mt.module, mt.name}()
 end
 
