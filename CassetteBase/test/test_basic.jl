@@ -2,12 +2,12 @@ module test_basic
 
 using Test, CassetteBase
 
-struct BasicGenerator
+struct BasicGenerator <: (@static isdefined(Core, :CachedGenerator) ? Core.CachedGenerator : Any)
     selfname::Symbol
     fargsname::Symbol
     raise::Bool
 end
-function (generator::BasicGenerator)(world::UInt, source::LineNumberNode, passtype, fargtypes)
+function (generator::BasicGenerator)(world::UInt, source::SourceType, passtype, fargtypes)
     @nospecialize passtype fargtypes
     (; selfname, fargsname, raise) = generator
     try
@@ -21,7 +21,7 @@ function (generator::BasicGenerator)(world::UInt, source::LineNumberNode, passty
             #=metadata=#(; world, source, passtype, fargtypes))
     end
 end
-function generate_basic_src(world::UInt, source::LineNumberNode, passtype, fargtypes,
+function generate_basic_src(world::UInt, source::SourceType, passtype, fargtypes,
                             selfname::Symbol, fargsname::Symbol; raise::Bool)
     @nospecialize passtype fargtypes
     tt = Base.to_tuple_type(fargtypes)

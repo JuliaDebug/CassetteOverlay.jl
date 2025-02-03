@@ -1,9 +1,11 @@
 module CassetteBase
 
-export cassette_transform!, generate_internalerr_ex, generate_lambda_ex
+export SourceType, cassette_transform!, generate_internalerr_ex, generate_lambda_ex
 
 using Core.IR
 using Core: SimpleVector
+
+const SourceType = @static VERSION ≥ v"1.12.0-DEV.1968" ? Method : LineNumberNode
 
 function cassette_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int,
                              selfname::Symbol, fargsname::Symbol)
@@ -146,7 +148,7 @@ function Base.showerror(io::IO, err::CassetteInternalError)
 end
 
 function generate_internalerr_ex(err, bt::Vector, context::Symbol,
-                                 world::UInt, source::LineNumberNode,
+                                 world::UInt, source::SourceType,
                                  argnames::SimpleVector, spnames::SimpleVector,
                                  metadata=nothing)
     @nospecialize err metadata
@@ -155,7 +157,7 @@ function generate_internalerr_ex(err, bt::Vector, context::Symbol,
     return generate_lambda_ex(world, source, argnames, spnames, throw_ex)
 end
 
-function generate_lambda_ex(world::UInt, source::LineNumberNode,
+function generate_lambda_ex(world::UInt, source::SourceType,
                             argnames::SimpleVector, spnames::SimpleVector,
                             body::Expr)
     stub = Core.GeneratedFunctionStub(identity, argnames, spnames)
