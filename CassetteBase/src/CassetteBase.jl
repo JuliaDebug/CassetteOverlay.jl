@@ -75,7 +75,12 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospe
     if isa(x, Expr)
         head = x.head
         if head === :call
-            return Expr(:call, SlotNumber(1), map(transform, x.args[1:end])...)
+            arg1 = x.args[1]
+            if ((arg1 === Base.cglobal || (arg1 isa GlobalRef && arg1.name === :cglobal)) ||
+                (arg1 === Core.tuple || (arg1 isa GlobalRef && arg1.name === :tuple)))
+                return Expr(:call, map(transform, x.args)...) # don't cassette this -- we still have non-linearized cglobal
+            end
+            return Expr(:call, SlotNumber(1), map(transform, x.args)...)
         elseif head === :foreigncall
             arg1 = x.args[1]
             if Meta.isexpr(arg1, :call)
