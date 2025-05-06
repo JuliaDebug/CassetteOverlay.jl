@@ -1,7 +1,7 @@
 name = "CassetteBase"
 uuid = "6dd3e646-b1c5-42c7-94be-00277fa12e22"
 authors = ["Shuhei Kadowaki <aviatesk@gmail.com>"]
-version = "0.2.0"
+version = "0.2.1"
 
 [compat]
 julia = "1.10"
