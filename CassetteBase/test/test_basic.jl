@@ -50,6 +50,11 @@ let pass = BasicPass()
     @test pass(sin, 1) == sin(1)
     @test_throws MethodError pass("1") do x; sin(x); end
 end
+const libccalltest = "libccalltest"
+fcglobal() = unsafe_load(cglobal((:global_var, libccalltest), Cint))
+let pass = BasicPass()
+    @test pass(fcglobal) isa Cint
+end
 
 struct RaisePass end
 @eval function (pass::RaisePass)(fargs...)
