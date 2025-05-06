@@ -30,7 +30,14 @@ function generate_basic_src(world::UInt, source::SourceType, passtype, fargtypes
     mi = Core.Compiler.specialize_method(match)
     src = Core.Compiler.retrieve_code_info(mi, world)
     src === nothing && return nothing # code generation failed - the fallback implementation will re-raise it
-    cassette_transform!(src, mi, length(fargtypes), selfname, fargsname)
+    errors = cassette_transform!(src, mi, length(fargtypes), selfname, fargsname)
+    if !isempty(errors)
+        # TODO `throw(errors)` when updating the minimum compat to 1.12
+        Core.println("Found invalid code:")
+        for e in errors
+            Core.println("- ", e)
+        end
+    end
     return src
 end
 

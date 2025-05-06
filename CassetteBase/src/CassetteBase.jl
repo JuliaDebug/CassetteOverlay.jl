@@ -67,7 +67,7 @@ function cassette_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int,
     src.edges = MethodInstance[mi]
     src.method_for_inference_limit_heuristics = method
 
-    return src
+    return Core.Compiler.validate_code(mi, src)
 end
 
 function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospecialize(spsig), sparams::SimpleVector)
