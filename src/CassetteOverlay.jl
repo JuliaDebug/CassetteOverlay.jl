@@ -48,7 +48,9 @@ function (generator::CassetteOverlayGenerator)(world::UInt, source::SourceType, 
     end
 end
 
-function generate_overlay_src(world::UInt, #=source=#::SourceType, passtype, fargtypes,
+global invalid_code::Vector{Any} = []
+
+function generate_overlay_src(world::UInt, source::SourceType, passtype, fargtypes,
                               selfname::Symbol, fargsname::Symbol)
     @nospecialize passtype fargtypes
     tt = Base.to_tuple_type(fargtypes)
@@ -57,7 +59,15 @@ function generate_overlay_src(world::UInt, #=source=#::SourceType, passtype, far
     mi = Core.Compiler.specialize_method(match)
     src = Core.Compiler.retrieve_code_info(mi, world)
     src === nothing && return nothing # code generation failed - the fallback implementation will re-raise it
-    cassette_transform!(src, mi, length(fargtypes), selfname, fargsname)
+    errors = cassette_transform!(src, mi, length(fargtypes), selfname, fargsname)
+    if !isempty(errors)
+        Core.println("Found invalid code:")
+        for e in errors
+            Core.println("- ", e)
+        end
+        push!(invalid_code, (world, source, passtype, fargtypes, src, selfname, fargsname))
+        # TODO `return nothing` when updating the minimum compat to 1.12
+    end
     return src
 end
 
