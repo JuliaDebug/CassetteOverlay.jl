@@ -21,15 +21,15 @@ function cassette_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int,
     local ssaid = 0
     for i = 1:mnargs
         if method.isva && i == mnargs
-            tuplecall = Expr(:call, tuple)
+            tuplecall = Expr(:call, GlobalRef(Core, :tuple))
             for j = i:nargs
-                push!(precode, Expr(:call, getfield, fargsslot, j))
+                push!(precode, Expr(:call, GlobalRef(Core, :getfield), fargsslot, j))
                 ssaid += 1
                 push!(tuplecall.args, SSAValue(ssaid))
             end
             push!(precode, tuplecall)
         else
-            push!(precode, Expr(:call, getfield, fargsslot, i))
+            push!(precode, Expr(:call, GlobalRef(Core, :getfield), fargsslot, i))
         end
         ssaid += 1
     end
