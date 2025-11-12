@@ -105,7 +105,8 @@ macro overlaypass(args...)
     nonoverlaytype = typeof(CassetteOverlay.nonoverlay)
 
     if method_table !== :nothing
-        mthd_tbl = :($CassetteOverlay.methodtable(::UInt, ::Type{$PassName}) = $(esc(method_table)))
+        mthd_tbl = :($CassetteOverlay.methodtable(world::UInt, ::Type{$PassName}) =
+            Base.Compiler.OverlayMethodTable(world, $(esc(method_table))))
     else
         mthd_tbl = nothing
     end
@@ -193,7 +194,8 @@ function methodtable(world::UInt, ::Type{<:AbstractBindingOverlay{M, S}}) where 
     end
     @static if VERSION ≥ v"1.12-"
         @assert isconst_at_world(M, S, world)
-        return getglobal_at_world(M, S, world)
+        mt, worlds = getglobal_at_world(M, S, world)
+        return Base.Compiler.OverlayMethodTable(world, mt::MethodTable) => worlds
     else
         @assert @invokelatest isconst(M, S)
         return getglobal(M, S)::MethodTable
