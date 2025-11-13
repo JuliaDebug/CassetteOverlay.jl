@@ -10,11 +10,9 @@ myidentity(@nospecialize x) = x
 kwifelse(x, y; cond=true) = ifelse(cond, x, y)
 
 # run overlayed methods
-@overlay SimpleTable myidentity(@nospecialize x) = 42
-@test pass(myidentity, nothing) == 42
-@test pass() do
-    myidentity(nothing)
-end == 42
+@overlay SimpleTable myidentity(@nospecialize x) = (@noinline; (println(devnull, "prevent inlining")); 42)
+call_myidentity() = @noinline myidentity(nothing)
+@test pass(call_myidentity) == 42
 
 # kwargs
 @overlay SimpleTable kwifelse(x, y; cond=true) = ifelse(cond, y, x)
@@ -28,8 +26,8 @@ let (x, y) = (0, 1)
 end
 
 # method invalidation
-@overlay SimpleTable myidentity(@nospecialize x) = 0
-@test pass(myidentity, nothing) == 0
+@overlay SimpleTable myidentity(@nospecialize x) = (@noinline; (println(devnull, "prevent inlining")); 0)
+@test pass(call_myidentity) == 0
 
 # nonoverlay
 @overlay SimpleTable myidentity(@nospecialize x) = nonoverlay(myidentity, x)
