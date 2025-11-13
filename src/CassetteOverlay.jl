@@ -1,7 +1,7 @@
 module CassetteOverlay
 
 export @MethodTable, @overlay, @overlaypass, getpass, nonoverlay, @nonoverlay,
-       AbstractBindingOverlay, Overlay
+    AbstractBindingOverlay, Overlay
 
 using CassetteBase
 
@@ -42,16 +42,19 @@ function (generator::CassetteOverlayGenerator)(world::UInt, source::SourceType, 
     catch err
         # internal error happened - return an expression to raise the special exception
         return generate_internalerr_ex(
-            err, #=bt=#catch_backtrace(), #=context=#:CassetteOverlayGenerator, world, source,
-            #=argnames=#Core.svec(selfname, fargsname), #=spnames=#Core.svec(),
-            #=metadata=#(; world, source, passtype, fargtypes))
+            err, #=bt=# catch_backtrace(), #=context=# :CassetteOverlayGenerator, world, source,
+            #=argnames=# Core.svec(selfname, fargsname), #=spnames=# Core.svec(),
+            #=metadata=# (; world, source, passtype, fargtypes)
+        )
     end
 end
 
 global invalid_code::Vector{Any} = []
 
-function generate_overlay_src(world::UInt, source::SourceType, passtype, fargtypes,
-                              selfname::Symbol, fargsname::Symbol)
+function generate_overlay_src(
+        world::UInt, source::SourceType, passtype, fargtypes,
+        selfname::Symbol, fargsname::Symbol
+    )
     @nospecialize passtype fargtypes
     tt = Base.to_tuple_type(fargtypes)
     mt_worlds = methodtable(world, passtype)
@@ -61,7 +64,7 @@ function generate_overlay_src(world::UInt, source::SourceType, passtype, fargtyp
         method_table = mt_worlds
         worlds = nothing
     end
-    match = Base._which(tt; method_table, raise=false, world)
+    match = Base._which(tt; method_table, raise = false, world)
     match === nothing && return nothing # method match failed – the fallback implementation will raise a proper MethodError
     mi = Core.Compiler.specialize_method(match)
     src = Core.Compiler.retrieve_code_info(mi, world)
@@ -112,7 +115,7 @@ macro overlaypass(args...)
 
     # primitives
     primitives = quote
-        @inline function (::$PassName)(f::Union{Core.Builtin,Core.IntrinsicFunction}, args...)
+        @inline function (::$PassName)(f::Union{Core.Builtin, Core.IntrinsicFunction}, args...)
             @nospecialize f args
             return f(args...)
         end
@@ -145,10 +148,14 @@ macro overlaypass(args...)
     # nonoverlay primitives
     nonoverlaypass = quote
         @nospecialize
-        @inline (pass::$PassName)(::$nonoverlaytype,
-            f, args...; kwargs...) = f(args...; kwargs...)
-        @inline (pass::$PassName)(::typeof(Core.kwcall),
-            kwargs::Any, ::$nonoverlaytype, fargs...) = Core.kwcall(kwargs, fargs...)
+        @inline (pass::$PassName)(
+            ::$nonoverlaytype,
+            f, args...; kwargs...
+        ) = f(args...; kwargs...)
+        @inline (pass::$PassName)(
+            ::typeof(Core.kwcall),
+            kwargs::Any, ::$nonoverlaytype, fargs...
+        ) = Core.kwcall(kwargs, fargs...)
         @specialize
     end
     append!(topblk.args, nonoverlaypass.args)
@@ -164,20 +171,20 @@ macro overlaypass(args...)
 end
 
 function isconst_at_world(m::Module, var::Symbol, world::UInt)
-      bpart = Base.lookup_binding_partition(world, GlobalRef(m, var))
-      kind = Base.binding_kind(bpart)
-      return Base.is_defined_const_binding(kind)
-  end
+    bpart = Base.lookup_binding_partition(world, GlobalRef(m, var))
+    kind = Base.binding_kind(bpart)
+    return Base.is_defined_const_binding(kind)
+end
 
- function getglobal_at_world(m::Module, var::Symbol, world::UInt)
-     b = @ccall jl_get_binding(m::Any, var::Any)::Any
-     bp = Base.lookup_binding_partition(world, b)
-     val_ptr = @ccall jl_get_binding_value_in_world(b::Any, world::Csize_t)::Ptr{Any}
-     if val_ptr == C_NULL
-         throw(ccall(:jl_new_struct, Any, (Any, Any...), UndefVarError, var, world, m))
-     end
-     return Pair{Any,UnitRange{UInt}}(unsafe_pointer_to_objref(val_ptr), bp.min_world:bp.max_world)
- end
+function getglobal_at_world(m::Module, var::Symbol, world::UInt)
+    b = @ccall jl_get_binding(m::Any, var::Any)::Any
+    bp = Base.lookup_binding_partition(world, b)
+    val_ptr = @ccall jl_get_binding_value_in_world(b::Any, world::Csize_t)::Ptr{Any}
+    if val_ptr == C_NULL
+        throw(ccall(:jl_new_struct, Any, (Any, Any...), UndefVarError, var, world, m))
+    end
+    return Pair{Any, UnitRange{UInt}}(unsafe_pointer_to_objref(val_ptr), bp.min_world:bp.max_world)
+end
 
 abstract type AbstractBindingOverlay{M, S} <: OverlayPass; end
 function methodtable(world::UInt, ::Type{<:AbstractBindingOverlay{M, S}}) where {M, S}
@@ -194,7 +201,8 @@ function methodtable(world::UInt, ::Type{<:AbstractBindingOverlay{M, S}}) where 
 end
 @overlaypass AbstractBindingOverlay nothing
 
-struct Overlay{M, S} <: AbstractBindingOverlay{M, S}; end
+struct Overlay{M, S} <: AbstractBindingOverlay{M, S}
+end
 function Overlay(mt::MethodTable)
     @assert @invokelatest isconst(mt.module, mt.name)
     @assert mt === @invokelatest getglobal(mt.module, mt.name)
