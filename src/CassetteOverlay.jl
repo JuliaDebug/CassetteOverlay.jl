@@ -15,7 +15,7 @@ function nonoverlay end
 
 @nospecialize
 cassette_overlay_error() = error("CassetteOverlay is available via `@overlaypass` macro")
-methodtable(::Type{<:OverlayPass}) = cassette_overlay_error()
+methodtable(::UInt, ::Type{<:OverlayPass}) = cassette_overlay_error()
 getpass(args...; kwargs...) = cassette_overlay_error()
 nonoverlay(args...; kwargs...) = cassette_overlay_error()
 @specialize
@@ -54,7 +54,14 @@ function generate_overlay_src(world::UInt, source::SourceType, passtype, fargtyp
                               selfname::Symbol, fargsname::Symbol)
     @nospecialize passtype fargtypes
     tt = Base.to_tuple_type(fargtypes)
-    match = Base._which(tt; method_table=methodtable(passtype), raise=false, world)
+    mt_worlds = methodtable(world, passtype)
+    if mt_worlds isa Pair
+        method_table, worlds = mt_worlds
+    else
+        method_table = mt_worlds
+        worlds = nothing
+    end
+    match = Base._which(tt; method_table, raise=false, world)
     match === nothing && return nothing # method match failed – the fallback implementation will raise a proper MethodError
     mi = Core.Compiler.specialize_method(match)
     src = Core.Compiler.retrieve_code_info(mi, world)
@@ -67,6 +74,9 @@ function generate_overlay_src(world::UInt, source::SourceType, passtype, fargtyp
         end
         push!(invalid_code, (world, source, passtype, fargtypes, src, selfname, fargsname))
         # TODO `return nothing` when updating the minimum compat to 1.12
+    end
+    if worlds !== nothing
+        src.min_world, src.max_world = max(src.min_world, first(worlds)), min(src.max_world, last(worlds))
     end
     return src
 end
@@ -92,7 +102,7 @@ macro overlaypass(args...)
     nonoverlaytype = typeof(CassetteOverlay.nonoverlay)
 
     if method_table !== :nothing
-        mthd_tbl = :($CassetteOverlay.methodtable(::Type{$PassName}) = $(esc(method_table)))
+        mthd_tbl = :($CassetteOverlay.methodtable(::UInt, ::Type{$PassName}) = $(esc(method_table)))
     else
         mthd_tbl = nothing
     end
@@ -153,14 +163,34 @@ macro overlaypass(args...)
     end
 end
 
+function isconst_at_world(m::Module, var::Symbol, world::UInt)
+      bpart = Base.lookup_binding_partition(world, GlobalRef(m, var))
+      kind = Base.binding_kind(bpart)
+      return Base.is_defined_const_binding(kind)
+  end
+
+ function getglobal_at_world(m::Module, var::Symbol, world::UInt)
+     b = @ccall jl_get_binding(m::Any, var::Any)::Any
+     bp = Base.lookup_binding_partition(world, b)
+     val_ptr = @ccall jl_get_binding_value_in_world(b::Any, world::Csize_t)::Ptr{Any}
+     if val_ptr == C_NULL
+         throw(ccall(:jl_new_struct, Any, (Any, Any...), UndefVarError, var, world, m))
+     end
+     return Pair{Any,UnitRange{UInt}}(unsafe_pointer_to_objref(val_ptr), bp.min_world:bp.max_world)
+ end
+
 abstract type AbstractBindingOverlay{M, S} <: OverlayPass; end
-function methodtable(::Type{<:AbstractBindingOverlay{M, S}}) where {M, S}
+function methodtable(world::UInt, ::Type{<:AbstractBindingOverlay{M, S}}) where {M, S}
     if M === nothing
         return nothing
     end
-    @assert @invokelatest isconst(M, S)
-    mt = @invokelatest getglobal(M, S)
-    return mt::MethodTable
+    @static if VERSION ≥ v"1.12-"
+        @assert isconst_at_world(M, S, world)
+        return getglobal_at_world(M, S, world)
+    else
+        @assert @invokelatest isconst(M, S)
+        return getglobal(M, S)::MethodTable
+    end
 end
 @overlaypass AbstractBindingOverlay nothing
 
