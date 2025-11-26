@@ -106,7 +106,7 @@ macro overlaypass(args...)
 
     if method_table !== :nothing
         mthd_tbl = :($CassetteOverlay.methodtable(world::UInt, ::Type{$PassName}) =
-            Base.Compiler.OverlayMethodTable(world, $(esc(method_table))))
+            Core.Compiler.OverlayMethodTable(world, $(esc(method_table))))
     else
         mthd_tbl = nothing
     end
