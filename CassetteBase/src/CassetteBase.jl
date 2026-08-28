@@ -115,7 +115,7 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospe
     elseif isa(x, SlotNumber)
         return map_slot_number(x.id)
     elseif isa(x, NewvarNode)
-        return NewvarNode(map_slot_number(x.slot.id))
+        return NewvarNode(map_slot_number(x.slot.id)::SlotNumber)
     elseif isa(x, SSAValue)
         return SSAValue(map_ssa_value(x.id))
     elseif @static @isdefined(EnterNode) && isa(x, EnterNode)
