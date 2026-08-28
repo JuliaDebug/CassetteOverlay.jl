@@ -65,7 +65,7 @@ function cassette_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int,
         code[i] = transform_stmt(code[i], map_slot_number, map_ssa_value, mi.def.sig, mi.sparam_vals)
     end
 
-    src.edges = MethodInstance[mi]
+    src.edges = Any[mi]
     src.method_for_inference_limit_heuristics = method
 
     return Core.Compiler.validate_code(mi, src)
@@ -114,6 +114,8 @@ function transform_stmt(@nospecialize(x), map_slot_number, map_ssa_value, @nospe
         return ReturnNode(transform(x.val))
     elseif isa(x, SlotNumber)
         return map_slot_number(x.id)
+    elseif @static isdefined(Core, :Argument) && isa(x, Core.Argument)
+        return map_slot_number(x.n)
     elseif isa(x, NewvarNode)
         return NewvarNode(map_slot_number(x.slot.id)::SlotNumber)
     elseif isa(x, SSAValue)
