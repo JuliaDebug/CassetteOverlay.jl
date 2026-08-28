@@ -1,7 +1,7 @@
 module CassetteOverlay
 
-export @MethodTable, @overlay, @overlaypass, getpass, nonoverlay, @nonoverlay,
-    AbstractBindingOverlay, Overlay
+export @MethodTable, @nonoverlay, @overlay, @overlaypass,
+    AbstractBindingOverlay, Overlay, getpass, nonoverlay
 
 using CassetteBase
 
