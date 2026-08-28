@@ -47,11 +47,12 @@ function cassette_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int,
         src.isva = true
     end
 
+    ssaid_fixed = ssaid
     function map_slot_number(slot::Int)
         @assert slot ≥ 1
         if 1 ≤ slot ≤ mnargs
             if method.isva && slot == mnargs
-                return SSAValue(ssaid)
+                return SSAValue(ssaid_fixed)
             else
                 return SSAValue(slot)
             end
@@ -59,8 +60,8 @@ function cassette_transform!(src::CodeInfo, mi::MethodInstance, nargs::Int,
             return SlotNumber(slot - mnargs + 2)
         end
     end
-    map_ssa_value(id::Int) = id + ssaid
-    for i = (ssaid+1:length(code))
+    map_ssa_value(id::Int) = id + ssaid_fixed
+    for i = (ssaid_fixed+1:length(code))
         code[i] = transform_stmt(code[i], map_slot_number, map_ssa_value, mi.def.sig, mi.sparam_vals)
     end
 
